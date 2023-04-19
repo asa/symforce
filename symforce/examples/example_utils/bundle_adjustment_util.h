@@ -25,10 +25,10 @@ struct Correspondence {
 };
 
 // Generate correspondences in the target camera given observations in the source camera.
-template <typename Scalar>
+template <typename PosedCameraT, typename Scalar>
 std::vector<Correspondence<Scalar>> GenerateCorrespondences(
-    const sym::PosedCamera<sym::LinearCameraCal<Scalar>>& source_cam,
-    const sym::PosedCamera<sym::LinearCameraCal<Scalar>>& target_cam,
+    const PosedCameraT& source_cam,
+    const PosedCameraT& target_cam,
     const std::vector<std::pair<Eigen::Matrix<Scalar, 2, 1>, Scalar>> source_observations,
     std::mt19937& gen, const Scalar epsilon = 1e-12, const Scalar noise_px = 0,
     const size_t num_outliers = 0) {

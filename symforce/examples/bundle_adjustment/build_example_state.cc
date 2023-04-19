@@ -12,6 +12,8 @@
 #include <symforce/opt/assert.h>
 #include <symforce/opt/util.h>
 
+using camera_calibration_t = sym::DoubleSphereCameraCald;
+
 namespace bundle_adjustment {
 
 namespace {
@@ -22,17 +24,25 @@ namespace {
  * returned; the first view is inserted into the Values with its ground truth value, and the second
  * is inserted with some noise on the pose.
  */
-std::vector<sym::PosedCamera<sym::LinearCameraCald>> AddViews(
+std::vector<sym::PosedCamera<camera_calibration_t>> AddViews(
     const BundleAdjustmentProblemParams& params, std::mt19937& gen, sym::Valuesd* const values) {
+
   const sym::Pose3d view0 = sym::Random<sym::Pose3d>(gen);
+
   sym::Vector6d perturbation;
+
   perturbation << 0.1, -0.2, 0.1, 2.1, 0.4, -0.2;
+
   const sym::Pose3d view1 = view0.Retract(
       perturbation * std::normal_distribution<double>(0, params.pose_difference_std)(gen));
 
-  const sym::LinearCameraCald camera_cal(Eigen::Vector2d(740, 740), Eigen::Vector2d(639.5, 359.5));
-  const sym::PosedCamera<sym::LinearCameraCald> cam0(view0, camera_cal, params.image_shape);
-  const sym::PosedCamera<sym::LinearCameraCald> cam1(view1, camera_cal, params.image_shape);
+  //using camera_calibration_t = sym::LinearCameraCald;
+  //const sym::LinearCameraCald camera_cal(Eigen::Vector2d(512, 512), Eigen::Vector2d(512, 512));
+  
+  const sym::DoubleSphereCameraCald camera_cal(Eigen::Vector2d(512, 512), Eigen::Vector2d(512, 512), 0.5, 0.5);
+
+  const sym::PosedCamera<camera_calibration_t> cam0(view0, camera_cal, params.image_shape);
+  const sym::PosedCamera<camera_calibration_t> cam1(view1, camera_cal, params.image_shape);
 
   values->Set({Var::VIEW, 0}, cam0.Pose());
   values->Set({Var::CALIBRATION, 0}, cam0.Calibration().Data());
@@ -49,7 +59,7 @@ std::vector<sym::PosedCamera<sym::LinearCameraCald>> AddViews(
  * weight in this example, and therefore have no effect.  The priors between sequential views are
  * set to be the actual transform between the ground truth poses, plus some noise.
  */
-void AddPosePriors(const std::vector<sym::PosedCamera<sym::LinearCameraCald>>& cams,
+void AddPosePriors(const std::vector<sym::PosedCamera<camera_calibration_t>>& cams,
                    const BundleAdjustmentProblemParams& params, std::mt19937& gen,
                    sym::Valuesd* const values) {
   // First, create the 0-weight priors:
@@ -78,7 +88,7 @@ void AddPosePriors(const std::vector<sym::PosedCamera<sym::LinearCameraCald>>& c
  * weight to apply to that correspondence's cost.  Each landmark has its inverse range in the source
  * view, as well as a Gaussian inverse range prior with mean and sigma.
  */
-void AddCorrespondences(const std::vector<sym::PosedCamera<sym::LinearCameraCald>>& cams,
+void AddCorrespondences(const std::vector<sym::PosedCamera<camera_calibration_t>>& cams,
                         const BundleAdjustmentProblemParams& params, std::mt19937& gen,
                         sym::Valuesd* const values) {
   // Sample random correspondences
@@ -93,6 +103,7 @@ void AddCorrespondences(const std::vector<sym::PosedCamera<sym::LinearCameraCald
       source_coords.begin(), source_coords.end(), source_inverse_ranges.begin(),
       std::back_inserter(source_observations),
       [](const auto& uv, const double inverse_range) { return std::make_pair(uv, inverse_range); });
+
   const std::vector<sym::example_utils::Correspondence<double>> correspondences =
       sym::example_utils::GenerateCorrespondences(cams[0], cams[1], source_observations, gen,
                                                   params.epsilon, params.noise_px,

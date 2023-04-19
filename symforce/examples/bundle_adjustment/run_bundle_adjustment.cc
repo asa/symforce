@@ -7,6 +7,7 @@
 
 #include <sym/factors/between_factor_pose3.h>
 #include <sym/factors/inverse_range_landmark_linear_reprojection_error_factor.h>
+#include <sym/factors/inverse_range_landmark_double_sphere_reprojection_error_factor.h>
 #include <sym/factors/inverse_range_landmark_prior_factor.h>
 #include <symforce/examples/example_utils/bundle_adjustment_util.h>
 #include <symforce/opt/assert.h>
@@ -52,7 +53,8 @@ sym::Factord CreateInverseRangeLandmarkPriorFactor(const int i, const int landma
  */
 sym::Factord CreateInverseRangeLandmarkReprojectionErrorFactor(const int i,
                                                                const int landmark_idx) {
-  return sym::Factord::Hessian(sym::InverseRangeLandmarkLinearReprojectionErrorFactor<double>,
+  //return sym::Factord::Hessian(sym::InverseRangeLandmarkLinearReprojectionErrorFactor<double>,
+  return sym::Factord::Hessian(sym::InverseRangeLandmarkDoubleSphereReprojectionErrorFactor<double>,
                                {{Var::VIEW, 0},
                                 {Var::CALIBRATION, 0},
                                 {Var::VIEW, i},
@@ -127,6 +129,8 @@ std::vector<sym::Key> ComputeKeysToOptimizeWithoutView0(const std::vector<sym::F
 }
 
 void RunBundleAdjustment() {
+
+
   // Create initial state
   std::mt19937 gen(42);
   const auto params = BundleAdjustmentProblemParams();
@@ -163,6 +167,11 @@ void RunBundleAdjustment() {
     spdlog::info("{} ", values.At<double>({Var::LANDMARK, i}));
   }
 
+//  spdlog::info("calibrations:");
+//  for (int i = 0; i < params.num_views; i++) {
+//    spdlog::info("{} ", values.At<calibration_t>({Var::CALIBRATION, i}));
+//  }
+  // spdlog::info("values {}",values);
   const auto& iteration_stats = stats.iterations;
   const auto& first_iter = iteration_stats.front();
   const auto& last_iter = iteration_stats.back();

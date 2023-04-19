@@ -16,7 +16,7 @@ namespace bundle_adjustment {
 struct BundleAdjustmentProblemParams {
   double epsilon = 1e-10;
   int num_views = 2;
-  int num_landmarks = 20;
+  int num_landmarks = 70;
   double reprojection_error_gnc_scale = 10;
   double noise_px = 5;
   double num_outliers = 0;
@@ -24,7 +24,7 @@ struct BundleAdjustmentProblemParams {
   double pose_difference_std = 2;
   double pose_noise = 0.1;
   double pose_prior_noise = 0.3;
-  Eigen::Vector2i image_shape{1280, 720};
+  Eigen::Vector2i image_shape{1024, 1024};
   bool debug_stats = false;
   bool check_derivatives = false;
 };
