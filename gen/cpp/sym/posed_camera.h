@@ -113,7 +113,7 @@ class PosedCamera : public Camera<CameraCalType> {
     return pose_;
   }
 
- private:
+ public:
   sym::Pose3<Scalar> pose_;
 };
 

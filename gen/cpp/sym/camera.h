@@ -104,7 +104,7 @@ class Camera {
     return image_size_;
   }
 
- private:
+ public:
   CameraCalType calibration_;
   Eigen::Matrix<int, 2, 1> image_size_;
 };

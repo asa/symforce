@@ -168,7 +168,7 @@ class DoubleSphereCameraCal {
     return data_ == rhs.Data();
   }
 
- protected:
+ public:
   DataVec data_;
 };
 

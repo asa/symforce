@@ -122,6 +122,10 @@ const std::unordered_map<key_t, index_entry_t>& Linearizer<ScalarType>::StateInd
   return state_index_;
 }
 
+template <typename ScalarType>
+const std::vector<std::vector<index_entry_t>>& Linearizer<ScalarType>::factor_indices() const {
+  return factor_indices_;
+}
 // ----------------------------------------------------------------------------
 // Private Methods
 // ----------------------------------------------------------------------------

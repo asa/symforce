@@ -72,6 +72,8 @@ class Linearizer {
   // for each key in Keys().
   const std::unordered_map<key_t, index_entry_t>& StateIndex() const;
 
+  const std::vector<std::vector<index_entry_t>>& factor_indices() const;
+
  private:
   /**
    * Allocate all factor storage and compute sparsity pattern. This does a lot of index

@@ -25,8 +25,11 @@ inline std::string FormatFailure(const char* error, const char* func, const char
 template <typename... T>
 inline std::string FormatFailure(const char* error, const char* func, const char* file, int line,
                                  const char* fmt, T&&... args) {
+  // force fmt::runtime to be used to avoid compile-time formatting which breaks between consteval,
+  // clang 17 and fmt.
+  auto runtime_fmt = fmt::runtime(fmt);
   return fmt::format("SYM_ASSERT: {}\n    --> {}\n    --> {}:{}\n{}\n", error, func, file, line,
-                     fmt::format(fmt, std::forward<T>(args)...));
+                     fmt::format(runtime_fmt, std::forward<T>(args)...));
 }
 
 }  // namespace sym
