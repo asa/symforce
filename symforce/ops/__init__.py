@@ -72,14 +72,19 @@ LieGroupOps.register(type(None), NoneTypeLieGroupOps)
 
 # TODO(hayk): Are these okay here or where can we put them? In theory we could just have this
 # be automatic that if the given type has the methods that it gets registered automatically.
-import sym
+try:
+    # do a try/except to avoid importing sym if it is not installed / generated yet
+    # this facilitates the initial generation of the sym module
+    import sym
 
-from .impl.sym_class_lie_group_ops import SymClassLieGroupOps
+    from .impl.sym_class_lie_group_ops import SymClassLieGroupOps
 
-LieGroupOps.register(sym.Rot2, SymClassLieGroupOps)
-LieGroupOps.register(sym.Rot3, SymClassLieGroupOps)
-LieGroupOps.register(sym.Pose2, SymClassLieGroupOps)
-LieGroupOps.register(sym.Pose3, SymClassLieGroupOps)
-LieGroupOps.register(sym.Unit3, SymClassLieGroupOps)
+    LieGroupOps.register(sym.Rot2, SymClassLieGroupOps)
+    LieGroupOps.register(sym.Rot3, SymClassLieGroupOps)
+    LieGroupOps.register(sym.Pose2, SymClassLieGroupOps)
+    LieGroupOps.register(sym.Pose3, SymClassLieGroupOps)
+    LieGroupOps.register(sym.Unit3, SymClassLieGroupOps)
 
-StorageOps.register(sf.DataBuffer, DataBufferStorageOps)
+    StorageOps.register(sf.DataBuffer, DataBufferStorageOps)
+except ImportError as e:
+    print(f"Warning: {e}")
