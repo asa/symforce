@@ -75,6 +75,10 @@ class Linearizer {
   // for each key in Keys().
   const std::unordered_map<key_t, index_entry_t>& StateIndex() const;
 
+  const std::vector<std::vector<index_entry_t>>& factor_indices() const;
+
+  const std::vector<std::pair<int32_t, int32_t>>& ResidualEntryByFactor() const;
+
  private:
   /**
    * Allocate all factor storage and compute sparsity pattern. This does a lot of index
@@ -143,6 +147,10 @@ class Linearizer {
   // Helpers for updating the combined problem from linearized factors
   std::vector<linearization_dense_factor_helper_t> dense_factor_update_helpers_;
   std::vector<linearization_sparse_factor_helper_t> sparse_factor_update_helpers_;
+
+  // helper to store the entry of residuals each factor is responsible for
+  // stored as offset and length into the residual vector
+  std::vector<std::pair<int32_t, int32_t>> residual_entry_by_factor_;
 
   // Numerical linearization from the very first linearization that is used to initialize new
   // LevenbergMarquardtState::StateBlocks (at most 3 times) and isn't touched on each subsequent
