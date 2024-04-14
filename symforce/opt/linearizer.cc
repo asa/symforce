@@ -232,7 +232,8 @@ void Linearizer<ScalarType>::BuildInitialLinearization(const Values<Scalar>& val
       }
 
       // Store the range of residuals this factor is responsible for
-      residual_entry_by_factor_.push_back({combined_residual_offset, factor_helper.residual_dim});
+      residual_entry_by_factor_.push_back(
+          {combined_residual_offset - factor_helper.residual_dim, factor_helper.residual_dim});
 
       // Add contribution from right-hand-side
       for (const linearization_offsets_t& key_helper : factor_helper.key_helpers) {
@@ -272,7 +273,8 @@ void Linearizer<ScalarType>::BuildInitialLinearization(const Values<Scalar>& val
       }
 
       // Store the range of residuals this factor is responsible for
-      residual_entry_by_factor_.push_back({combined_residual_offset, factor_helper.residual_dim});
+      residual_entry_by_factor_.push_back(
+          {combined_residual_offset - factor_helper.residual_dim, factor_helper.residual_dim});
 
       // Add contributions from right-hand-side
       for (const linearization_dense_key_helper_t& key_helper : factor_helper.key_helpers) {
