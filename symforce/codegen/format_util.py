@@ -10,7 +10,7 @@ from pathlib import Path
 
 try:
     from ruff.__main__ import find_ruff_bin
-except ImportError:
+except:
     print("Could not import ruff, formatting will not work")
 
 from symforce import typing as T
