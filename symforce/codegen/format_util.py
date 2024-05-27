@@ -11,7 +11,8 @@ from pathlib import Path
 try:
     from ruff.__main__ import find_ruff_bin
 except:
-    print("ruff not found")
+    pass
+    #print("ruff not found")
 
 from symforce import typing as T
 

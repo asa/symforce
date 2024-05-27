@@ -87,4 +87,5 @@ try:
 
     StorageOps.register(sf.DataBuffer, DataBufferStorageOps)
 except ImportError as e:
-    print(f"Warning: {e}")
+    pass
+    #print(f"Warning: {e}")
