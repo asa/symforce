@@ -44,6 +44,57 @@ Factor<Scalar>::Factor(const SparseJacobianFunc& jacobian_func,
                        const std::vector<Key>& keys_to_optimize)
     : Factor(HessianFuncFromJacobianFunc<Scalar>(jacobian_func), keys_to_func, keys_to_optimize) {}
 
+/*
+template <typename Scalar>
+Factor<Scalar>::Factor(typename Factor<Scalar>::LinearizedDenseFactor linearized_factor,
+                   const VectorX<Scalar> linearization_point,
+                   const std::vector<Key>& keys_to_optimize)
+: Factor(
+      [linearization_point,                                                          //
+       jacobian = linearized_factor.jacobian,                                        //
+       jacobian_transpose = linearized_factor.jacobian.transpose(),                  //
+       hessian = linearized_factor.hessian](const Values<Scalar>& values,            //
+                                            const std::vector<index_entry_t>& keys,  //
+                                            VectorX<Scalar>* res,                    //
+                                            Matrix* jac,                             //
+                                            Matrix* hes,                             //
+                                            VectorX<Scalar>* rhs) mutable {
+        // there is also a state vector this was created with
+        // Eigen::VectorXd state_vector(6);
+        // state_vector.head(6) = x.ToTangent();
+
+        // TODO pull tangent dim from index entries
+        auto tangent_dim = linearization_point.size();
+
+        VectorX<Scalar> tangent_vec(tangent_dim);
+        size_t tangent_inx = 0;
+
+        for (const index_entry_t& entry : keys) {
+          LocalCoordinatesByType<Scalar>(entry.type,                          //
+                                         data_.data() + entry.offset,         //
+                                         others.data_.data() + entry.offset,  //
+                                         tangent_vec.data() + tangent_inx,    //
+                                         epsilon,                             //
+                                         entry.tangent_dim);
+          tangent_inx += entry.tangent_dim;
+        }
+
+        // updated at each problem-linearization point during opt
+        // the lin point of this factor is fixed
+        *res = jacobian * (tangent_vec - linearization_point);
+        *rhs = jacobian_transpose * (*res);
+
+        spdlog::info("state: {} ", state_vector);
+        spdlog::info("lin:   {} ", linearization_point);
+        spdlog::info("res:   {} ", (*res));
+        spdlog::info("rhs:   {} ", (*rhs));
+
+        *jac = jacobian;
+        *hess = hessian;
+      },
+      keys_to_optimize, keys_to_optimize) {}
+      */
+
 template <typename Scalar>
 void Factor<Scalar>::Linearize(
     const Values<Scalar>& values, VectorX<Scalar>* residual,

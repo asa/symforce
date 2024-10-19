@@ -275,7 +275,7 @@ BY_TYPE_HELPER(LocalCoordinatesByType, LocalCoordinatesHelper, MatrixLocalCoordi
 
 template <typename Scalar>
 VectorX<Scalar> Values<Scalar>::LocalCoordinates(const Values<Scalar>& others, const index_t& index,
-                                                 const Scalar epsilon) {
+                                                 const Scalar epsilon) const {
   VectorX<Scalar> tangent_vec(index.tangent_dim);
   size_t tangent_inx = 0;
 

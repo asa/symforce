@@ -21,6 +21,11 @@ void SparseSchurSolver<_MatrixType>::ComputeSymbolicSparsity(const MatrixType& A
   sparsity_information_.B_dim_ = sparsity_information_.total_dim_ - C_dim;
   sparsity_information_.C_dim_ = C_dim;
 
+  std::cerr << "A\n" << A << std::endl;
+  std::cerr << "total dim " << sparsity_information_.total_dim_ << std::endl;
+  std::cerr << "B dim " << sparsity_information_.B_dim_ << std::endl;
+  std::cerr << "C dim " << sparsity_information_.C_dim_ << std::endl;
+
   // Iterate over blocks along the diagonal of C
   bool currently_in_block = false;
   int offset_in_C = 0;
@@ -37,6 +42,10 @@ void SparseSchurSolver<_MatrixType>::ComputeSymbolicSparsity(const MatrixType& A
       if (start_row == -1) {
         start_row = it.row();
       }
+
+      std::cerr << "it row " << it.row() << std::endl;
+      std::cerr << "start row " << start_row << std::endl;
+      std::cerr << "prev row " << prev_row << std::endl;
 
       if (prev_row != -1) {
         SYM_ASSERT(it.row() == prev_row + 1,

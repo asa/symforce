@@ -43,6 +43,10 @@ Linearizer<ScalarType>::Linearizer(const std::string& name,
       num_dense_factors++;
     }
   }
+  /*
+  spdlog::info("{} linearizer factors count sparse {} dense {} ", name_, num_sparse_factors,
+               num_dense_factors);
+ */
 
   linearized_sparse_factors_.resize(num_sparse_factors);
   sparse_factor_update_helpers_.reserve(num_sparse_factors);

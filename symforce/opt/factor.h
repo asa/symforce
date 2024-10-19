@@ -117,6 +117,18 @@ class Factor {
          const std::vector<Key>& keys_to_optimize = {});
 
   /**
+   * Create directly from a Linearized(dense/sparse)Factor.
+   *
+   * @param keys_to_optimize: The set of input arguments that correspond to the linearization point.
+   *        must be in order of linearization
+   *
+   */
+  Factor(typename Factor<Scalar>::LinearizedDenseFactor linearized_factor,
+         const VectorX<Scalar> linearization_point, const std::vector<Key>& keys_to_optimize = {});
+  //  Factor(SparseHessianFunc hessian_func, const std::vector<Key>& keys_to_func,
+  //         const std::vector<Key>& keys_to_optimize = {});
+
+  /**
    * Create from a function that computes the (dense/sparse) jacobian. The hessian will be computed
    * using the Gauss Newton approximation:
    *
