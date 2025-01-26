@@ -89,6 +89,8 @@ def format_py(file_contents: str, filename: str) -> str:
             it's only used for ruff to find the correct style file (by traversing upwards from this
             location)
     """
+    #"skipping python formatting"
+    return file_contents
     result = subprocess.run(
         [_find_ruff(), "format", f"--stdin-filename={filename}", "-"],
         input=file_contents,
