@@ -190,9 +190,9 @@ class Optimizer:
             self.optimized_keys = []
         else:
             self.optimized_keys = list(optimized_keys)
-            assert len(optimized_keys) == len(
-                set(optimized_keys)
-            ), f"Duplicates in optimized keys: {optimized_keys}"
+            assert len(optimized_keys) == len(set(optimized_keys)), (
+                f"Duplicates in optimized keys: {optimized_keys}"
+            )
 
         optimized_keys_set = set(self.optimized_keys)
 
@@ -232,7 +232,9 @@ class Optimizer:
         if debug_stats is not None:
             self.params.debug_stats = debug_stats
             warnings.warn(
-                "debug_stats argument is deprecated, use params.debug_stats", FutureWarning
+                "debug_stats argument is deprecated, use params.debug_stats",
+                FutureWarning,
+                stacklevel=5,
             )
 
         if include_jacobians is not None:
@@ -240,6 +242,7 @@ class Optimizer:
             warnings.warn(
                 "include_jacobians argument is deprecated, use params.include_jacobians",
                 FutureWarning,
+                stacklevel=5,
             )
 
         self._initialized = False

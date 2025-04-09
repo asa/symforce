@@ -88,6 +88,28 @@ std::enable_if_t<kIsEigenType<Derived>> Values<Scalar>::Set(const index_entry_t&
 // Private Methods
 // ----------------------------------------------------------------------------
 
+namespace internal {
+template <typename T, typename = void>
+struct MaybeTangentDim {
+  static constexpr int32_t value = -1;
+};
+
+// Pre-C++17 void_t implementation
+// See https://en.cppreference.com/w/cpp/types/void_t
+template <typename... Ts>
+struct make_void {
+  typedef void type;
+};
+
+template <typename... Ts>
+using void_t = typename make_void<Ts...>::type;
+
+template <typename T>
+struct MaybeTangentDim<T, void_t<decltype(LieGroupOps<T>::TangentDim())>> {
+  static constexpr int32_t value = LieGroupOps<T>::TangentDim();
+};
+}  // namespace internal
+
 template <typename Scalar>
 template <typename T>
 bool Values<Scalar>::SetInternal(const Key& key, const T& value) {
@@ -109,7 +131,7 @@ bool Values<Scalar>::SetInternal(const Key& key, const T& value) {
     entry.type = type;
     entry.offset = static_cast<int32_t>(data_.size());
     entry.storage_dim = sym::StorageOps<T>::StorageDim();
-    entry.tangent_dim = sym::LieGroupOps<T>::TangentDim();
+    entry.tangent_dim = internal::MaybeTangentDim<T>::value;
 
     // Extend end of data
     data_.insert(data_.end(), entry.storage_dim, 0);

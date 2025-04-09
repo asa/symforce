@@ -83,7 +83,7 @@ class MatrixXi : public Eigen::Matrix<int32_t, Eigen::Dynamic, Eigen::Dynamic, E
    * message type, and is a fingerprint on the message type definition, not on
    * the message contents.
    */
-  constexpr static int64_t getHash();
+  constexpr static uint64_t getHash();
 
   using type_name_array_t = const char[9];
 
@@ -93,6 +93,10 @@ class MatrixXi : public Eigen::Matrix<int32_t, Eigen::Dynamic, Eigen::Dynamic, E
    * Returns "MatrixXi"
    */
   inline static constexpr const char* getTypeName();
+
+  using package_name_array_t = const char[10];
+
+  inline static constexpr package_name_array_t* getPackageNameArrayPtr();
 
   /**
    * Returns "eigen_lcm"
@@ -114,9 +118,9 @@ class MatrixXi : public Eigen::Matrix<int32_t, Eigen::Dynamic, Eigen::Dynamic, E
 __lcm_buffer_size MatrixXi::encode(void* buf, __lcm_buffer_size offset,
                                    __lcm_buffer_size maxlen) const {
   __lcm_buffer_size pos = 0, tlen;
-  int64_t hash = (int64_t)getHash();
+  uint64_t hash = getHash();
 
-  tlen = __int64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
+  tlen = __uint64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
   if (tlen < 0)
     return tlen;
   else
@@ -135,13 +139,13 @@ __lcm_buffer_size MatrixXi::decode(const void* buf, __lcm_buffer_size offset,
                                    __lcm_buffer_size maxlen) {
   __lcm_buffer_size pos = 0, thislen;
 
-  int64_t msg_hash;
-  thislen = __int64_t_decode_array(buf, offset + pos, maxlen - pos, &msg_hash, 1);
+  uint64_t hash;
+  thislen = __uint64_t_decode_array(buf, offset + pos, maxlen - pos, &hash, 1);
   if (thislen < 0)
     return thislen;
   else
     pos += thislen;
-  if (msg_hash != getHash())
+  if (hash != getHash())
     return -1;
 
   thislen = this->_decodeNoHash(buf, offset + pos, maxlen - pos);
@@ -157,8 +161,8 @@ __lcm_buffer_size MatrixXi::getEncodedSize() const {
   return 8 + _getEncodedSizeNoHash();
 }
 
-constexpr int64_t MatrixXi::getHash() {
-  return static_cast<int64_t>(_computeHash(NULL));
+constexpr uint64_t MatrixXi::getHash() {
+  return _computeHash(NULL);
 }
 
 constexpr MatrixXi::type_name_array_t* MatrixXi::getTypeNameArrayPtr() {
@@ -169,8 +173,12 @@ constexpr const char* MatrixXi::getTypeName() {
   return *MatrixXi::getTypeNameArrayPtr();
 }
 
+constexpr MatrixXi::package_name_array_t* MatrixXi::getPackageNameArrayPtr() {
+  return &"eigen_lcm";
+}
+
 constexpr const char* MatrixXi::getPackageName() {
-  return "eigen_lcm";
+  return *MatrixXi::getPackageNameArrayPtr();
 }
 
 __lcm_buffer_size MatrixXi::_encodeNoHash(void* buf, __lcm_buffer_size offset,

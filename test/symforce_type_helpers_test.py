@@ -7,14 +7,13 @@ import inspect
 
 # Unused imports here for testing purposes
 import symforce.symbolic as sf
-from symforce import geo  # pylint: disable=unused-import
-from symforce import typing as T  # pylint: disable=unused-import
-from symforce.cam import LinearCameraCal  # pylint: disable=unused-import
-from symforce.geo import Pose3  # pylint: disable=unused-import
-from symforce.geo import Vector3  # pylint: disable=unused-import
+from symforce import geo
+from symforce.cam import LinearCameraCal
+from symforce.geo import Pose3
+from symforce.geo import Vector3
 from symforce.test_util import TestCase
 from symforce.type_helpers import deduce_input_types
-from symforce.typing import Scalar  # pylint: disable=unused-import
+from symforce.typing import Scalar
 
 
 class SymforceTypeHelpersTest(TestCase):
@@ -23,9 +22,6 @@ class SymforceTypeHelpersTest(TestCase):
     """
 
     def test_deduce_input_types(self) -> None:
-        # Lots of unused arguments in here
-        # pylint: disable=unused-argument
-
         # Can deduce self for bound method on geo classes
         assert (
             inspect.signature(sf.Rot3.compose).parameters["self"].annotation
@@ -34,7 +30,7 @@ class SymforceTypeHelpersTest(TestCase):
         self.assertEqual(deduce_input_types(sf.Rot3.compose), [sf.Rot3, sf.Rot3])
 
         # Can't deduce types that aren't annotated
-        def my_function_partly_typed(a: sf.Pose3, b) -> None:  # type: ignore
+        def my_function_partly_typed(a: sf.Pose3, b) -> None:  # type: ignore[no-untyped-def]
             pass
 
         self.assertRaises(ValueError, deduce_input_types, my_function_partly_typed)
@@ -69,7 +65,7 @@ class SymforceTypeHelpersTest(TestCase):
 
         # Fails for nonexistant types annotated as 2-part strings in expected modules
         def my_function_annotated_with_something_that_doesnt_exist(
-            a: "sf.Foo",  # type: ignore
+            a: "sf.Foo",  # type: ignore[name-defined]
         ) -> None:
             pass
 

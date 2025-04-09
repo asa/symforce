@@ -346,6 +346,7 @@ def get_formatted_list(
                 required
         format_as_inputs: True if values defines the input symbols, false if values defines output
                           expressions.
+
     Returns:
         flattened_formatted_symbolic_values: nested list of formatted scalar symbols
         flattened_original_values: nested list of original scalar values
@@ -392,10 +393,10 @@ def get_formatted_list(
                     )
                 )
 
-            assert len(formatted_symbols) == len(
-                set(formatted_symbols)
-            ), "Non-unique keys:\n{}".format(
-                [symbol for symbol in formatted_symbols if formatted_symbols.count(symbol) > 1]
+            assert len(formatted_symbols) == len(set(formatted_symbols)), (
+                "Non-unique keys:\n{}".format(
+                    [symbol for symbol in formatted_symbols if formatted_symbols.count(symbol) > 1]
+                )
             )
         elif issubclass(arg_cls, (list, tuple)):
             # Term is a list, so we loop over the index of the list, i.e.
@@ -416,10 +417,10 @@ def get_formatted_list(
                     )
                 )
 
-            assert len(formatted_symbols) == len(
-                set(formatted_symbols)
-            ), "Non-unique keys:\n{}".format(
-                [symbol for symbol in formatted_symbols if formatted_symbols.count(symbol) > 1]
+            assert len(formatted_symbols) == len(set(formatted_symbols)), (
+                "Non-unique keys:\n{}".format(
+                    [symbol for symbol in formatted_symbols if formatted_symbols.count(symbol) > 1]
+                )
             )
         else:
             if format_as_inputs:
@@ -441,7 +442,7 @@ def get_formatted_list(
             )
             # Only print matches if flattened_value isn't filled with expressions
             if format_as_inputs:
-                matches = list(zip(formatted_symbols, flattened_value))
+                matches = list(itertools.zip_longest(formatted_symbols, flattened_value))
                 error_text += f"The following symbol/value pairs should match: {matches}"
             raise ValueError(error_text)
 
@@ -543,7 +544,7 @@ def _load_generated_package_internal(name: str, path: Path) -> T.Tuple[T.Any, T.
     ensure name imports the correct modules.
     """
     if path.is_dir():
-        path = path / "__init__.py"
+        path = path / "__init__.py"  # noqa: PLR6104
 
     parts = name.split(".")
     if len(parts) > 1:
@@ -687,7 +688,7 @@ def load_generated_lcmtype(
     """
     # We need to import the lcmtypes package first so that sys.path is set up correctly, since this
     # is a namespace package
-    import lcmtypes  # pylint: disable=unused-import
+    import lcmtypes  # noqa: F401
 
     return getattr(
         load_generated_package(

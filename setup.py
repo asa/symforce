@@ -3,7 +3,6 @@
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
 
-import distutils.util
 import multiprocessing
 import os
 import re
@@ -18,22 +17,10 @@ from setuptools import find_packages
 from setuptools import setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.develop import develop
-from setuptools.command.egg_info import egg_info
 from setuptools.command.install import install
 
 SOURCE_DIR = Path(__file__).resolve().parent
-
-
-def symforce_version() -> str:
-    """
-    Fetch the current symforce version from _version.py
-
-    We can't import the version here, so we have to do some text parsing
-    """
-    version_file_contents = (Path(__file__).parent / "symforce" / "_version.py").read_text()
-    version_match = re.search(r'^version = "(.+)"$', version_file_contents, flags=re.MULTILINE)
-    assert version_match is not None
-    return version_match.group(1)
+ESCAPED_SOURCE_DIR = Path(str(SOURCE_DIR).replace(" ", "%20"))
 
 
 class CMakeExtension(Extension):
@@ -65,7 +52,7 @@ class PatchDevelop(develop):
         # regardless of whether we're building with develop or build_editable,
         # (both before and after version 64.0.0), we patch develop to add this
         # field to build_ext and set it to True.
-        self.distribution.get_command_obj("build_ext").editable_mode = True  # type: ignore[union-attr]
+        self.distribution.get_command_obj("build_ext").editable_mode = True  # type: ignore[misc]
         super().run()
 
 
@@ -122,7 +109,7 @@ class CMakeBuild(build_ext):
         # Assuming Makefiles
         build_args += ["--", f"-j{multiprocessing.cpu_count()}"]
 
-        self.build_args = build_args  # pylint: disable=attribute-defined-outside-init
+        self.build_args = build_args
 
         env = os.environ.copy()
         env["CXXFLAGS"] = '{} -DVERSION_INFO=\\"{}\\"'.format(
@@ -209,60 +196,17 @@ class CMakeBuild(build_ext):
         self.copy_file(extension_source_paths[ext.name], str(dest_path))
 
 
-class SymForceEggInfo(egg_info):
-    """
-    Custom Egg info, that optionally rewrites local dependencies (that are stored in the symforce
-    repo) to package dependencies
-    """
+def maybe_rewrite_local_dependencies(dep_list: T.List[str]) -> T.List[str]:
+    if "SYMFORCE_REWRITE_LOCAL_DEPENDENCIES" in os.environ:
 
-    user_options = egg_info.user_options + [
-        (
-            "rewrite-local-dependencies=",
-            None,
-            "Rewrite in-repo Python dependencies from `package @ file:` to `package==version`.  Can"
-            " also be provided as the environment variable SYMFORCE_REWRITE_LOCAL_DEPENDENCIES",
-        )
-    ]
+        def filter_local(s: str) -> str:
+            if "@" in s:
+                s = f"{s.split('@')[0]}=={os.environ['SYMFORCE_REWRITE_LOCAL_DEPENDENCIES']}"
+            return s
 
-    def initialize_options(self) -> None:
-        super().initialize_options()
-        self.rewrite_local_dependencies = False  # pylint: disable=attribute-defined-outside-init
-
-    def finalize_options(self) -> None:
-        super().finalize_options()
-
-        if not isinstance(self.rewrite_local_dependencies, bool):
-            self.rewrite_local_dependencies = (  # pylint: disable=attribute-defined-outside-init
-                bool(distutils.util.strtobool(self.rewrite_local_dependencies))
-            )
-
-        if "SYMFORCE_REWRITE_LOCAL_DEPENDENCIES" in os.environ:
-            self.rewrite_local_dependencies = (  # pylint: disable=attribute-defined-outside-init
-                bool(distutils.util.strtobool(os.environ["SYMFORCE_REWRITE_LOCAL_DEPENDENCIES"]))
-            )
-
-    def run(self) -> None:
-        # Rewrite dependencies from the local `file:` versions to generic pinned package versions.
-        # This is what we want when e.g. building wheels for PyPI, where those local dependencies
-        # are hosted as their own PyPI packages.  We can't just decide whether to do this e.g. based
-        # on whether we're building a wheel, since `pip install .` also builds a wheel to install.
-        if self.rewrite_local_dependencies:
-
-            def filter_local(s: str) -> str:
-                if "@" in s:
-                    s = f"{s.split('@')[0]}=={symforce_version()}"
-                return s
-
-            self.distribution.install_requires = [  # type: ignore[attr-defined]
-                filter_local(requirement)
-                for requirement in self.distribution.install_requires  # type: ignore[attr-defined]
-            ]
-            self.distribution.extras_require = {  # type: ignore[attr-defined]
-                k: [filter_local(requirement) for requirement in v]
-                for k, v in self.distribution.extras_require.items()  # type: ignore[attr-defined]
-            }
-
-        super().run()
+        return [filter_local(dependency) for dependency in dep_list]
+    else:
+        return dep_list
 
 
 def maybe_find_symengine_wrapper(build_dir: Path, ext_filename: str) -> T.Optional[Path]:
@@ -337,11 +281,12 @@ class InstallWithExtras(install):
 
 setup_requirements = [
     "setuptools>=62.3.0",  # For package data globs
+    "setuptools-scm>=8",
     "wheel",
     "pip",
     "cmake>=3.17,<3.27",
     "cython>=0.19.1,<3",
-    f"skymarshal @ file://localhost/{SOURCE_DIR}/third_party/skymarshal",
+    f"skymarshal @ file://localhost/{ESCAPED_SOURCE_DIR}/third_party/skymarshal",
 ]
 
 docs_requirements = [
@@ -380,7 +325,7 @@ def fixed_readme() -> str:
     """
     Fix things in the README for PyPI
     """
-    readme = Path("README.md").read_text()
+    readme = Path("README.md").read_text(encoding="UTF8")
 
     # Replace relative links with absolute, so images appear correctly on PyPI
     readme = readme.replace(
@@ -403,7 +348,6 @@ def fixed_readme() -> str:
 
 if __name__ == "__main__":
     setup(
-        version=symforce_version(),
         long_description=fixed_readme(),
         long_description_content_type="text/markdown",
         # The SymForce package is a namespace package (important for data-only subdirectories
@@ -426,45 +370,47 @@ if __name__ == "__main__":
         cmdclass=dict(
             build_ext=CMakeBuild,
             install=InstallWithExtras,
-            egg_info=SymForceEggInfo,
             develop=PatchDevelop,
         ),
         # Build C++ extension module
         ext_modules=[CMakeExtension("cc_sym"), CMakeExtension("lcmtypes")],
         # Barebones packages needed to run symforce
-        install_requires=[
-            "ruff",
-            "clang-format",
-            "graphviz",
-            "jinja2",
-            "numpy",
-            "scipy",
-            f"skymarshal @ file://localhost/{SOURCE_DIR}/third_party/skymarshal",
-            "sympy~=1.11.1",
-            f"symforce-sym @ file://localhost/{SOURCE_DIR}/gen/python",
-        ],
+        install_requires=maybe_rewrite_local_dependencies(
+            [
+                "ruff",
+                "clang-format",
+                "graphviz",
+                "jinja2",
+                # numpy 2.0 isn't supported until SymPy 1.13.0
+                # https://github.com/sympy/sympy/wiki/Release-Notes-for-1.13.0
+                "numpy<2.0",
+                "scipy",
+                f"skymarshal @ file://localhost/{ESCAPED_SOURCE_DIR}/third_party/skymarshal",
+                "sympy~=1.11.1",
+                f"symforce-sym @ file://localhost/{ESCAPED_SOURCE_DIR}/gen/python",
+            ]
+        ),
         setup_requires=setup_requirements,
         extras_require={
-            "docs": docs_requirements,
-            "dev": docs_requirements
-            + [
-                "argh",
-                "coverage",
-                "jinja2~=3.0",
-                "mypy~=1.8.0",
-                "numba",
-                # 6.13 fixes pip >=23.1 support
-                "pip-tools>=6.13",
-                # NOTE(aaron): v1.0 changed lots of things, we'll need to update and regenerate
-                "pybind11-stubgen<1.0",
-                "pylint",
-                "ruff~=0.3.2",
-                # NOTE(brad): A transitive dependency of pylint. Added here only to pin the version.
-                "lazy-object-proxy>=1.9.0",
-                "types-jinja2",
-                "types-requests",
-                "types-setuptools",
-            ],
-            "_setup": setup_requirements,
+            "docs": maybe_rewrite_local_dependencies(docs_requirements),
+            "dev": maybe_rewrite_local_dependencies(
+                docs_requirements
+                + [
+                    "argh",
+                    "coverage",
+                    "jinja2~=3.0",
+                    "mypy~=1.11.0",
+                    "numba",
+                    # For https://github.com/sizmailov/pybind11-stubgen/pull/243
+                    "pybind11-stubgen>=2.5.3",
+                    "ruff~=0.9.7",
+                    "types-jinja2",
+                    "types-requests",
+                    "types-setuptools",
+                    # Oldest version that solves to the right requirements
+                    "uv>=0.2.0",
+                ]
+            ),
+            "setup": maybe_rewrite_local_dependencies(setup_requirements),
         },
     )

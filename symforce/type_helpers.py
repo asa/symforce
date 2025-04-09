@@ -77,15 +77,15 @@ def symbolic_inputs(
     parameters = [
         p
         for p in inspect.signature(func).parameters.values()
-        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        if p.kind in {inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD}
     ]
 
     if input_types is None:
         input_types = deduce_input_types(func)
     else:
-        assert len(parameters) == len(
-            input_types
-        ), f"Parameters: {parameters}, inputs_types: {input_types}"
+        assert len(parameters) == len(input_types), (
+            f"Parameters: {parameters}, inputs_types: {input_types}"
+        )
 
     # Formulate symbolic arguments to function
     inputs = Values()

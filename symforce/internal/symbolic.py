@@ -3,6 +3,8 @@
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
 
+from __future__ import annotations
+
 """
 The (symforce-internal) core symbolic API
 
@@ -23,8 +25,7 @@ It typically isn't necessary to actually access the symbolic API being used inte
 available as well as :mod:`symforce.symbolic.sympy`.
 """
 
-# pylint: disable=unused-import
-# pylint: disable=unused-wildcard-import
+# ruff: noqa: F401, F403, F405, SLF001
 
 import contextlib
 import functools
@@ -33,7 +34,7 @@ import symforce
 from symforce import logger
 from symforce import typing as T
 
-if symforce._symbolic_api is None:  # pylint: disable=protected-access
+if symforce._symbolic_api is None:
     import textwrap
 
     logger.warning(
@@ -54,13 +55,13 @@ if symforce._symbolic_api is None:  # pylint: disable=protected-access
 
 # See `symforce/__init__.py` for more information, this is used to check whether things that this
 # module depends on are modified after importing
-symforce._have_imported_symbolic = True  # pylint: disable=protected-access
+symforce._have_imported_symbolic = True
+
+# Import sympy, for methods that convert to sympy types or call sympy functions below
+import sympy as _sympy_py
 
 if not T.TYPE_CHECKING and symforce.get_symbolic_api() == "symengine":
-    sympy = symforce._find_symengine()  # pylint: disable=protected-access
-
-    # Import sympy, for methods that convert to sympy types or call sympy functions below
-    import sympy as _sympy_py
+    sympy = symforce._find_symengine()
 
     # isort: split
 
@@ -299,7 +300,7 @@ __scopes__: T.List[str] = []
 
 
 def set_scope(scope: str) -> None:
-    global __scopes__  # pylint: disable=global-statement
+    global __scopes__  # noqa: PLW0603
     __scopes__ = scope.split(".") if scope else []
 
 
@@ -315,7 +316,7 @@ scope = create_named_scope(__scopes__)
 
 if not T.TYPE_CHECKING and sympy.__package__ == "symengine":
 
-    class Symbol(sympy.Symbol):  # pylint: disable=function-redefined,too-many-ancestors
+    class Symbol(sympy.Symbol):
         def __init__(
             self,
             name: str,
@@ -339,9 +340,7 @@ if not T.TYPE_CHECKING and sympy.__package__ == "symengine":
     _original_symbols = sympy.symbols
 
     @functools.wraps(_original_symbols)
-    def symbols(  # pylint: disable=function-redefined
-        names: str, **args: T.Any
-    ) -> T.Union[T.Sequence[Symbol], Symbol]:
+    def symbols(names: str, **args: T.Any) -> T.Union[T.Sequence[Symbol], Symbol]:
         cls = args.pop("cls", Symbol)
         return _original_symbols(names, **dict(args, cls=cls))
 
@@ -404,7 +403,6 @@ def epsilon() -> T.Any:
         The current default epsilon.  This is typically some kind of "Scalar", like a float or a
         :class:`Symbol <symforce.symbolic.Symbol>`.
     """
-    # pylint: disable=protected-access
 
     if isinstance(symforce._epsilon, symforce.SymbolicEpsilon):
         symforce._epsilon = sympy.Symbol(symforce._epsilon.name)
@@ -426,7 +424,7 @@ from symforce.typing import Scalar
 # --------------------------------------------------------------------------------
 
 # isort: split
-from symforce.logic import *  # pylint: disable=wildcard-import
+from symforce.logic import *
 
 # --------------------------------------------------------------------------------
 # Additional custom functions
@@ -451,20 +449,6 @@ def angle_diff(x: Scalar, y: Scalar) -> Scalar:
     See also: :func:`wrap_angle`
     """
     return wrap_angle(x - y)
-
-
-def sign_no_zero(x: Scalar) -> Scalar:
-    """
-    Returns -1 if x is negative, 1 if x is positive, and 1 if x is zero.
-    """
-    return 2 * Min(sign(x), 0) + 1
-
-
-def copysign_no_zero(x: Scalar, y: Scalar) -> Scalar:
-    """
-    Returns a value with the magnitude of x and sign of y. If y is zero, returns positive x.
-    """
-    return Abs(x) * sign_no_zero(y)
 
 
 def argmax_onehot(vals: T.Iterable[Scalar], tolerance: Scalar = epsilon()) -> T.List[Scalar]:
@@ -561,6 +545,167 @@ def set_eval_on_sympify(eval_on_sympy: bool = True) -> None:
 
 
 # --------------------------------------------------------------------------------
+# Custom functions sign_no_zero and copysign_no_zero
+# --------------------------------------------------------------------------------
+
+
+class SignNoZero(_sympy_py.Function):
+    @classmethod
+    def eval(cls, *args: T.Any) -> T.Any:
+        # NOTE(aaron): This doesn't implement nice simplifications like
+        #
+        #     x * sign_no_zero(y) -> copysign_no_zero(x, y) if x > 0
+        #
+        # We can't implement those on a Function afaik.  We should implement pre-CSE
+        # optimizations that do this
+        if len(args) != 1:
+            raise ValueError(f"sign_no_zero takes one argument, got {len(args)}")
+
+        x = args[0]
+        if x.is_positive:
+            return _sympy_py.S.One
+        elif x.is_negative:
+            return _sympy_py.S.NegativeOne
+        elif x.is_zero:
+            return _sympy_py.S.One
+        else:
+            return None
+
+    # --------------------------------------------------------------------------------
+    # Override print functions for SymPy printers
+    #
+    # For SymForce-only printers, like PyTorch, we don't need to override here.  We do this so that
+    # printing these works if you use the actual SymPy printers (like
+    # sympy.printing.pycode.PythonCodePrinter) for something, in addition to the SymForce subclasses
+    # (like symforce.codegen.backends.python.python_code_printer.PythonCodePrinter)
+    # --------------------------------------------------------------------------------
+
+    def _sympystr(self, printer: _sympy_py.printing.StrPrinter, **kwargs: T.Any) -> T.Any:
+        return f"sign_no_zero({printer._print(self.args[0], **kwargs)})"
+
+    def _pretty(self, printer: T.Any, **kwargs: T.Any) -> T.Any:
+        return printer._print_Function(self, func_name="sign_no_zero")
+
+    def _latex(self, printer: T.Any, **kwargs: T.Any) -> T.Any:
+        name = printer._hprint_Function("sign_no_zero")
+        arg = printer._print(self.args[0], **kwargs)
+        can_fold_brackets = printer._settings[
+            "fold_func_brackets"
+        ] and not printer._needs_function_brackets(self.args[0])
+        if can_fold_brackets:
+            return f"{name}{arg}"
+        else:
+            return rf"{name}{{\left({arg} \right)}}"
+
+    def _pythoncode(self, printer: T.Any, **kwargs: T.Any) -> T.Any:
+        f = printer._module_format("math.copysign")
+        arg0 = printer._print(self.args[0], **kwargs)
+        return f"{f}(1, {arg0})"
+
+    def _eval_evalf(self, prec: T.Any) -> T.Any:
+        return (2 * _sympy_py.Min(_sympy_py.sign(self.args[0]), 0) + 1)._eval_evalf(prec)
+
+    @staticmethod
+    def fdiff(argindex: T.Optional[int] = 1) -> T.Any:
+        assert argindex == 1
+        return _sympy_py.S.Zero
+
+
+SymPySignNoZero = SignNoZero
+
+
+class CopysignNoZero(_sympy_py.Function):
+    @classmethod
+    def eval(cls, *args: T.Any) -> T.Any:
+        if len(args) != 2:
+            raise ValueError(f"copysign_no_zero takes two arguments, got {len(args)}")
+
+        x = args[0]
+        y = args[1]
+
+        if x.is_zero:
+            return x
+        elif x.is_positive and (y.is_positive or y.is_zero):
+            return x
+        elif x.is_negative and y.is_negative:
+            return x
+        elif x.is_negative and (y.is_positive or y.is_zero):
+            return -x
+        elif x.is_positive and y.is_negative:
+            return -x
+        else:
+            return None
+
+    # --------------------------------------------------------------------------------
+    # Override print functions for SymPy printers
+    #
+    # For SymForce-only printers, like PyTorch, we don't need to override here.  We do this so that
+    # printing these works if you use the actual SymPy printers (like
+    # sympy.printing.pycode.PythonCodePrinter) for something, in addition to the SymForce subclasses
+    # (like symforce.codegen.backends.python.python_code_printer.PythonCodePrinter)
+    # --------------------------------------------------------------------------------
+
+    def _sympystr(self, printer: _sympy_py.printing.StrPrinter, **kwargs: T.Any) -> T.Any:
+        arg0 = printer._print(self.args[0], **kwargs)
+        arg1 = printer._print(self.args[1], **kwargs)
+        return f"copysign_no_zero({arg0}, {arg1})"
+
+    def _pretty(self, printer: T.Any, **kwargs: T.Any) -> T.Any:
+        return printer._print_Function(self, func_name="copysign_no_zero")
+
+    def _latex(self, printer: T.Any, **kwargs: T.Any) -> T.Any:
+        name = printer._hprint_Function("copysign_no_zero")
+        arg0 = printer._print(self.args[0], **kwargs)
+        arg1 = printer._print(self.args[1], **kwargs)
+        return rf"{name}{{\left({arg0}, {arg1} \right)}}"
+
+    def _pythoncode(self, printer: T.Any, **kwargs: T.Any) -> T.Any:
+        f = printer._module_format("math.copysign")
+        arg0 = printer._print(self.args[0], **kwargs)
+        arg1 = printer._print(self.args[1], **kwargs)
+        return f"{f}({arg0}, {arg1})"
+
+    def _eval_evalf(self, prec: T.Any) -> T.Any:
+        return (_sympy_py.Abs(self.args[0]) * SymPySignNoZero(self.args[1]))._eval_evalf(prec)
+
+    def fdiff(self, argindex: T.Optional[int] = 1) -> T.Any:
+        if argindex == 1:
+            return SymPySignNoZero(self.args[0]) * SymPySignNoZero(self.args[1])
+        elif argindex == 2:
+            return _sympy_py.S.Zero
+
+
+SymPyCopysignNoZero = CopysignNoZero
+
+
+if not T.TYPE_CHECKING and sympy.__package__ == "symengine":
+    del SignNoZero
+    del CopysignNoZero
+    from symengine import CopysignNoZero
+    from symengine import SignNoZero
+elif sympy.__package__ == "sympy":
+    pass
+else:
+    raise symforce.InvalidSymbolicApiError(sympy.__package__)
+
+
+def sign_no_zero(x: Scalar) -> sf.Expr:
+    """
+    Returns -1 if x is negative, 1 if x is positive, and 1 if x is zero.
+    """
+    return SignNoZero(x)
+
+
+def copysign_no_zero(x: Scalar, y: Scalar) -> Scalar:
+    """
+    Returns a value with the magnitude of x and sign of y
+
+    If y is zero, returns positive x.
+    """
+    return CopysignNoZero(x, y)
+
+
+# --------------------------------------------------------------------------------
 # Create simplify
 # --------------------------------------------------------------------------------
 
@@ -586,7 +731,7 @@ if not T.TYPE_CHECKING and sympy.__package__ == "symengine":
         e: T.Any,
         z: T.Any,
         z0: T.Any,
-        dir: str = "+",  # pylint: disable=redefined-builtin
+        dir: str = "+",  # noqa: A002
     ) -> Scalar:
         logger.warning("Converting to sympy to use .limit")
         return sympy.S(_sympy_py.limit(_sympy_py.S(e), _sympy_py.S(z), _sympy_py.S(z0), dir=dir))
@@ -688,14 +833,14 @@ elif sympy.__package__ == "sympy":
     # Hack in some key derivatives that sympy doesn't do. For all these cases the derivatives
     # here are correct except at the discrete switching point, which is correct for our
     # numerical purposes.
-    setattr(floor, "_eval_derivative", lambda s, v: S.Zero)
-    setattr(sign, "_eval_derivative", lambda s, v: S.Zero)
+    floor._eval_derivative = lambda s, v: S.Zero
+    sign._eval_derivative = lambda s, v: S.Zero
 
     def mod_derivative(self: T.Any, x: T.Any) -> T.Any:
         p, q = self.args
-        return self._eval_rewrite_as_floor(p, q).diff(x)  # pylint: disable=protected-access
+        return self._eval_rewrite_as_floor(p, q).diff(x)
 
-    setattr(Mod, "_eval_derivative", mod_derivative)
+    Mod._eval_derivative = mod_derivative
 else:
     raise symforce.InvalidSymbolicApiError(sympy.__package__)
 
@@ -712,8 +857,8 @@ def _flatten_storage_type_subs(
     """
     new_subs_dict = {}
     # Import these lazily, since initialization.py is imported from symforce/__init__.py
-    from symforce import ops  # pylint: disable=cyclic-import
-    from symforce import typing_util  # pylint: disable=cyclic-import
+    from symforce import ops
+    from symforce import typing_util
 
     for key, value in subs_pairs:
         if key is None:
@@ -782,7 +927,7 @@ if sympy.__package__ == "symengine":
     # For some reason this doesn't exist unless we import the symengine_wrapper directly as a
     # local variable, i.e. just `import symengine.lib.symengine_wrapper` does not let us access
     # symengine.lib.symengine_wrapper
-    import symengine.lib.symengine_wrapper as wrapper  # pylint: disable=no-name-in-module
+    import symengine.lib.symengine_wrapper as wrapper
 
     original_get_dict = wrapper.get_dict
     wrapper.get_dict = lambda *args, **kwargs: original_get_dict(_get_subs_dict(*args, **kwargs))

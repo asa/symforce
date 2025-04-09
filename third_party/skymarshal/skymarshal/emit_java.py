@@ -1,5 +1,4 @@
 # mypy: allow-untyped-defs
-# aclint: py3
 
 from __future__ import annotations
 
@@ -396,7 +395,9 @@ class SkymarshalJava(SkymarshalLanguage):
             for enum in package.enum_definitions:
                 # TODO(jeff): generate a java enum class instead of an equivalent struct
                 javaclass = JavaClass(package, enum.equivalent_struct, args)
-                file_map[javaclass.fullpath] = render("lcmtype.java.template", lcmtype=javaclass)
+                file_map[javaclass.fullpath] = render("lcmtype.java.template", lcmtype=javaclass,
+                                                      enum_cases=enum.cases,
+                                                      enum_storage_type=TYPE_MAP[enum.storage_type_ref.name].constant)
 
         if args.java_srcjar is not None:
             zip_contents = BytesIO()

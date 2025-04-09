@@ -12,11 +12,11 @@
 
 #include <Eigen/Core>
 
-#include "./ops/group_ops.h"
-#include "./ops/lie_group_ops.h"
-#include "./ops/storage_ops.h"
-#include "./rot2.h"
-#include "./util/epsilon.h"
+#include <sym/ops/group_ops.h>
+#include <sym/ops/lie_group_ops.h>
+#include <sym/ops/storage_ops.h>
+#include <sym/rot2.h>
+#include <sym/util/epsilon.h>
 
 namespace sym {
 
@@ -64,7 +64,9 @@ class Pose2 {
    *     vector may be faster, e.g. with `FromStorage`.
    */
   explicit Pose2(const DataVec& data, const bool normalize = true) : data_(data) {
-    (void)normalize;
+    if (normalize) {
+      data_.template head<2>() = data_.template head<2>().normalized();
+    }
   }
 
   // Default construct to identity
@@ -249,6 +251,10 @@ class Pose2 {
 
   bool operator==(const Pose2& rhs) const {
     return data_ == rhs.Data();
+  }
+
+  bool operator!=(const Pose2& rhs) const {
+    return !(*this == rhs);
   }
 
  protected:

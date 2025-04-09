@@ -107,7 +107,7 @@ class inputs_t
          * message type, and is a fingerprint on the message type definition, not on
          * the message contents.
          */
-        inline static int64_t getHash();
+        inline static uint64_t getHash();
 
         using type_name_array_t = const char[9];
 
@@ -117,6 +117,10 @@ class inputs_t
          * Returns "inputs_t"
          */
         inline static constexpr const char* getTypeName();
+
+        using package_name_array_t = const char[28];
+
+        inline static constexpr package_name_array_t* getPackageNameArrayPtr();
 
         /**
          * Returns "codegen_multi_function_test"
@@ -175,54 +179,124 @@ class inputs_t
             }};
         }
 
-        // Return true if field was found
-        bool format_field(std::ostream& _stream, uint16_t field_index, uint16_t _indent) const
+        // Given a string field path, translate the entire path to field / list indices within this struct.
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field.
+        static uint32_t translate_fields(const char* const _fields[], uint32_t _field_indices_out[], uint32_t _num_fields) {
+            if (strcmp(_fields[0], fields()[0]) == 0) {
+                _field_indices_out[0] = 0;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::x)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[1]) == 0) {
+                _field_indices_out[0] = 1;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::y)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[2]) == 0) {
+                _field_indices_out[0] = 2;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::rot)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[3]) == 0) {
+                _field_indices_out[0] = 3;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::rot_vec)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[4]) == 0) {
+                _field_indices_out[0] = 4;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::scalar_vec)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[5]) == 0) {
+                _field_indices_out[0] = 5;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::list_of_lists)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[6]) == 0) {
+                _field_indices_out[0] = 6;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::values_vec)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[7]) == 0) {
+                _field_indices_out[0] = 7;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::values_vec_2D)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[8]) == 0) {
+                _field_indices_out[0] = 8;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::constants)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[9]) == 0) {
+                _field_indices_out[0] = 9;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::big_matrix)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[10]) == 0) {
+                _field_indices_out[0] = 10;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::small_matrix)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[11]) == 0) {
+                _field_indices_out[0] = 11;
+                uint32_t ret = lcm::translate_fields<decltype(inputs_t::states)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            return 1;
+
+        }
+
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field.
+        uint32_t show_field(std::ostream& _stream, const uint32_t _field_indices[], uint32_t _num_fields, uint32_t _indent) const
         {
-            switch (field_index) {
+            uint32_t ret;
+            switch (_field_indices[0]) {
                 case 0:
-                lcm::format_json(_stream, x, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, x, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 1:
-                lcm::format_json(_stream, y, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, y, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 2:
-                lcm::format_json(_stream, rot, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, rot, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 3:
-                lcm::format_json(_stream, rot_vec, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, rot_vec, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 4:
-                lcm::format_json(_stream, scalar_vec, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, scalar_vec, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 5:
-                lcm::format_json(_stream, list_of_lists, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, list_of_lists, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 6:
-                lcm::format_json(_stream, values_vec, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, values_vec, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 7:
-                lcm::format_json(_stream, values_vec_2D, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, values_vec_2D, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 8:
-                lcm::format_json(_stream, constants, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, constants, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 9:
-                lcm::format_json(_stream, big_matrix, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, big_matrix, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 10:
-                lcm::format_json(_stream, small_matrix, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, small_matrix, _indent);
+                return ret == 0 ? ret : ret + 1;
                 case 11:
-                lcm::format_json(_stream, states, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, states, _indent);
+                return ret == 0 ? ret : ret + 1;
                 default:
-                return false;
+                return 1;
             }
         }
 
         // Ability to print to standard streams as well as the fmt library.
         friend std::ostream& operator<<(std::ostream& _stream, const inputs_t& obj) {
-            lcm::format_json(_stream, obj, 0);
+            lcm::show_field(_stream, nullptr, 0, obj, 0);
             return _stream;
         }
 
@@ -237,60 +311,49 @@ class inputs_t
         // Return value is 0 if the operation succeeded.
         // If the operation failed, return value is equal to 1 + the index of the first invalid field,
         // 1 + field_size if there are not enough fields, or 2 + field_size if the value is invalid.
-        __attribute__((nodiscard)) uint16_t store_field(const char* _fields[], uint16_t _num_fields, const char* _value)
+        __attribute__((nodiscard)) uint32_t store_field(const uint32_t _field_indices[], uint32_t _num_fields, const char* const _value)
         {
-            if (_num_fields == 0 || _fields[0] == nullptr) {
+            uint32_t ret;
+            switch (_field_indices[0]) {
+                case 0:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, x, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 1:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, y, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 2:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, rot, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 3:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, rot_vec, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 4:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, scalar_vec, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 5:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, list_of_lists, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 6:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, values_vec, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 7:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, values_vec_2D, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 8:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, constants, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 9:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, big_matrix, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 10:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, small_matrix, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 11:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, states, _value);
+                return ret == 0 ? ret : ret + 1;
+                default:
                 return 1;
             }
-            if (strcmp(_fields[0], fields()[0]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, x, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[1]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, y, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[2]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, rot, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[3]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, rot_vec, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[4]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, scalar_vec, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[5]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, list_of_lists, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[6]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, values_vec, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[7]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, values_vec_2D, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[8]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, constants, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[9]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, big_matrix, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[10]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, small_matrix, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            if (strcmp(_fields[0], fields()[11]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, states, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            return 1;
         }
 #endif
 };
@@ -324,9 +387,9 @@ inputs_t::inputs_t(
 __lcm_buffer_size inputs_t::encode(void *buf, __lcm_buffer_size offset, __lcm_buffer_size maxlen) const
 {
     __lcm_buffer_size pos = 0, tlen;
-    int64_t hash = (int64_t)getHash();
+    uint64_t hash = getHash();
 
-    tlen = __int64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
+    tlen = __uint64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if(tlen < 0) return tlen; else pos += tlen;
 
     tlen = this->_encodeNoHash(buf, offset + pos, maxlen - pos);
@@ -339,10 +402,10 @@ __lcm_buffer_size inputs_t::decode(const void *buf, __lcm_buffer_size offset, __
 {
     __lcm_buffer_size pos = 0, thislen;
 
-    int64_t msg_hash;
-    thislen = __int64_t_decode_array(buf, offset + pos, maxlen - pos, &msg_hash, 1);
+    uint64_t hash;
+    thislen = __uint64_t_decode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if (thislen < 0) return thislen; else pos += thislen;
-    if (msg_hash != getHash()) return -1;
+    if (hash != getHash()) return -1;
 
     thislen = this->_decodeNoHash(buf, offset + pos, maxlen - pos);
     if (thislen < 0) return thislen; else pos += thislen;
@@ -355,9 +418,9 @@ __lcm_buffer_size inputs_t::getEncodedSize() const
     return 8 + _getEncodedSizeNoHash();
 }
 
-int64_t inputs_t::getHash()
+uint64_t inputs_t::getHash()
 {
-    static int64_t hash = _computeHash(NULL);
+    static uint64_t hash = _computeHash(NULL);
     return hash;
 }
 
@@ -370,9 +433,13 @@ constexpr const char* inputs_t::getTypeName()
     return *inputs_t::getTypeNameArrayPtr();
 }
 
+constexpr inputs_t::package_name_array_t* inputs_t::getPackageNameArrayPtr() {
+    return &"codegen_multi_function_test";
+}
+
 constexpr const char * inputs_t::getPackageName()
 {
-    return "codegen_multi_function_test";
+    return *inputs_t::getPackageNameArrayPtr();
 }
 
 __lcm_buffer_size inputs_t::_encodeNoHash(void *buf, __lcm_buffer_size offset, __lcm_buffer_size maxlen) const

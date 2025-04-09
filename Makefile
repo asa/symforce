@@ -23,20 +23,21 @@ FIND_CPP_FILES_TO_FORMAT=find . \
 	-and -not -path "./build/*" \
 	-and -not -path "./.eggs/*" \
 	-and -not -path "./symforce/benchmarks/matrix_multiplication/gen/*" \
-	-regextype posix-extended -regex ".*\.(h|cc|tcc)"
+	-regextype posix-extended -regex ".*\.(h|cc|tcc|cu|cuh)"
 
 # Format using ruff and clang-format
 RUFF_FORMAT_CMD=ruff format .
-RUFF_ISORT_CMD=ruff check . --select=I
 format:
+	ruff check . --fixable=I,D --fix-only
 	$(RUFF_FORMAT_CMD)
-	$(RUFF_ISORT_CMD) --fix
 	$(FIND_CPP_FILES_TO_FORMAT) | xargs $(CPP_FORMAT) -i
 
 # Check formatting using ruff and clang-format - print diff, do not modify files
+# NOTE(aaron): This doesn't check docstring rules with ruff, I'm not sure how to filter to docstring
+# rules but keep the exclusions from our ruff config
 check_format:
+	ruff check . --select=I --diff
 	$(RUFF_FORMAT_CMD) --check --diff
-	$(RUFF_ISORT_CMD) --diff
 	$(FIND_CPP_FILES_TO_FORMAT) | xargs $(CPP_FORMAT) --dry-run -Werror
 
 # Check type hints using mypy
@@ -53,21 +54,19 @@ check_types:
 		--exclude "symforce/examples/.*/gen/python2\.7/lcmtypes" \
 		--exclude third_party
 
-# Run pylint on the symforce package, and tests
-# TODO(aaron): Also run on other python code in symforce.  Generated code will require a different
-# config since it is py6 and contains a lot of duplicate code
-pylint:
-	$(PYTHON) -m pylint symforce test/*.py
+# Run ruff check
+ruff_check:
+	ruff check
 
 # Lint check for formatting and type hints
 # This needs pass before any merge.
-lint: check_types check_format pylint
+lint: check_types check_format ruff_check
 
 # Clean all artifacts
 clean: docs_clean coverage_clean
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all reqs format check_format check_types pylint lint clean
+.PHONY: all reqs format check_format check_types ruff_check lint clean
 
 # -----------------------------------------------------------------------------
 # Tests

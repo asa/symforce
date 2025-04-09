@@ -24,7 +24,6 @@ class Quaternion(Group):
     Storage is (x, y, z, w).
 
     References:
-
         https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation
     """
 
@@ -127,7 +126,7 @@ class Quaternion(Group):
         """
         return self.__class__(xyz=self.xyz + right.xyz, w=self.w + right.w)
 
-    def __div__(self, scalar: T.Scalar) -> Quaternion:
+    def __truediv__(self, scalar: T.Scalar) -> Quaternion:
         """
         Scalar division.
 
@@ -139,8 +138,6 @@ class Quaternion(Group):
         """
         denom = sf.S.One / scalar
         return self.__class__(xyz=self.xyz * denom, w=self.w * denom)
-
-    __truediv__ = __div__
 
     @classmethod
     def zero(cls) -> Quaternion:

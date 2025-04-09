@@ -9,12 +9,14 @@
 #include <thread>
 
 #include <Eigen/Core>
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <sym/factors/internal/imu_manifold_preintegration_update.h>
 #include <sym/factors/internal/imu_manifold_preintegration_update_auto_derivative.h>
 #include <sym/rot3.h>
 #include <sym/util/epsilon.h>
+#include <symforce/slam/imu_preintegration/imu_factor.h>
 #include <symforce/slam/imu_preintegration/imu_preintegrator.h>
 
 using Eigen::Ref;
@@ -442,4 +444,83 @@ TEST_CASE("Verify bias-corrected delta", "[slam]") {
   CHECK(pim0_delta.Dp.isApprox(delta1_corrected.Dp, kTol));
   CHECK(pim0_delta.Dv.isApprox(delta1_corrected.Dv, kTol));
   CHECK(sym::LieGroupOps<sym::Rot3d>::IsClose(pim0_delta.DR, delta1_corrected.DR, kTol));
+}
+
+TEST_CASE("Test RollForwardState", "[slam]") {
+  const double dt = 1e-3;
+  const int iterations = 100;
+
+  sym::ImuPreintegrator<double> integrator(example::kAccelBias, example::kGyroBias);
+
+  for (int k_ = 0; k_ < iterations; k_++) {
+    integrator.IntegrateMeasurement(example::kAccelBias + example::kTrueAccel,
+                                    example::kGyroBias + example::kTrueGyro, example::kAccelCov,
+                                    example::kGyroCov, dt, sym::kDefaultEpsilond);
+  }
+
+  std::mt19937 gen{42};
+
+  const auto p0 = sym::Pose3d::Random(gen);
+  const auto v0 = sym::Random<Vector3d>(gen);
+
+  const auto p1_and_v1 =
+      integrator.PreintegratedMeasurements().delta.RollForwardState(p0, v0, Vector3d::Zero());
+  const auto& p1 = p1_and_v1.first;
+  const auto& v1 = p1_and_v1.second;
+
+  const auto factor = sym::ImuFactord{integrator};
+  sym::Vector9d residual;
+  factor(p0, v0, p1, v1, example::kAccelBias, example::kGyroBias, Vector3d::Zero(),
+         sym::kDefaultEpsilond, &residual);
+
+  CHECK(residual.norm() < 1e-10);
+}
+
+TEMPLATE_TEST_CASE("Test StorageOps", "[slam]", float, double) {
+  using Scalar = TestType;
+
+  std::mt19937 gen{42};
+  const auto accel_bias = sym::Random<sym::Vector3<Scalar>>(gen);
+  const auto gyro_bias = sym::Random<sym::Vector3<Scalar>>(gen);
+  sym::PreintegratedImuMeasurements<Scalar> pim(accel_bias, gyro_bias);
+  const auto Dt = sym::Random<Scalar>(gen);
+  const auto DR = sym::Random<sym::Rot3<Scalar>>(gen);
+  const auto Dv = sym::Random<sym::Vector3<Scalar>>(gen);
+  const auto Dp = sym::Random<sym::Vector3<Scalar>>(gen);
+  pim.delta = typename sym::PreintegratedImuMeasurements<Scalar>::Delta{Dt, DR, Dv, Dp};
+  pim.DR_D_gyro_bias = sym::Random<sym::Matrix33<Scalar>>(gen);
+  pim.Dv_D_accel_bias = sym::Random<sym::Matrix33<Scalar>>(gen);
+  pim.Dv_D_gyro_bias = sym::Random<sym::Matrix33<Scalar>>(gen);
+  pim.Dp_D_gyro_bias = sym::Random<sym::Matrix33<Scalar>>(gen);
+  pim.Dp_D_accel_bias = sym::Random<sym::Matrix33<Scalar>>(gen);
+
+  {
+    static_assert(sym::PreintegratedImuMeasurements<Scalar>::StorageDim() ==
+                  sym::StorageOps<sym::PreintegratedImuMeasurements<Scalar>>::StorageDim());
+  }
+
+  {
+    std::array<Scalar, sym::PreintegratedImuMeasurements<Scalar>::StorageDim()> storage;
+    pim.ToStorage(storage.data());
+    const auto pim2 = sym::PreintegratedImuMeasurements<Scalar>::FromStorage(storage.data());
+
+    CHECK(pim2.GetLcmType() == pim.GetLcmType());
+  }
+
+  {
+    std::array<Scalar, sym::PreintegratedImuMeasurements<Scalar>::StorageDim()> storage;
+    sym::StorageOps<sym::PreintegratedImuMeasurements<Scalar>>::ToStorage(pim, storage.data());
+    const auto pim2 =
+        sym::StorageOps<sym::PreintegratedImuMeasurements<Scalar>>::FromStorage(storage.data());
+
+    CHECK(pim2.GetLcmType() == pim.GetLcmType());
+  }
+
+  {
+    sym::Values<Scalar> v;
+    v.Set('p', pim);
+
+    const auto pim2 = v.template At<sym::PreintegratedImuMeasurements<Scalar>>('p');
+    CHECK(pim2.GetLcmType() == pim.GetLcmType());
+  }
 }

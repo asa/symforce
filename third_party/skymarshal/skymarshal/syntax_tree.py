@@ -1,4 +1,3 @@
-# aclint: py3
 
 from __future__ import annotations
 
@@ -171,6 +170,10 @@ class Notation(AstNode):
                     name="add_unknown_enum_alias",
                     type="bool",
                 ),
+                NotationSpecProperty(
+                    name="omit_enum_wrapper",
+                    type="bool",
+                ),
             ],
         ),
         "#hashable": NotationSpec(
@@ -222,7 +225,17 @@ class Notation(AstNode):
 
             unknown_props = provided_props - allowed_props
             if unknown_props:
-                raise KeyError(f"Unknown properties for notation {name}: {sorted(unknown_props)}")
+                if self.allow_unknown_notations:
+                    print(
+                        f"Warning: Unknown properties for notation {name}: {sorted(unknown_props)}"
+                    )
+                    self.raw_properties = {
+                        k: v for k, v in self.raw_properties.items() if k in allowed_props
+                    }
+                else:
+                    raise KeyError(
+                        f"Unknown properties for notation {name}: {sorted(unknown_props)}"
+                    )
 
             # Parse the property values
             self.properties = {

@@ -8,6 +8,7 @@ import sympy
 from sympy.printing.codeprinter import CodePrinter
 from sympy.printing.pycode import PythonCodePrinter
 
+import symforce.internal.symbolic as sf
 from symforce import typing as T
 
 _known_functions_torch = {
@@ -39,6 +40,7 @@ _known_functions_torch = {
     "Sqrt": "sqrt",
     "tan": "tan",
     "tanh": "tanh",
+    "CopysignNoZero": "copysign",
 }
 
 _known_constants_math = {
@@ -57,7 +59,7 @@ def _print_known_const(self: PyTorchCodePrinter, expr: sympy.Expr) -> str:
 
 def _print_known_func(self: PyTorchCodePrinter, expr: sympy.Expr) -> str:
     name = _known_functions_torch[expr.__class__.__name__]
-    return f"torch.{name}({', '.join(map(self._print, expr.args))})"  # pylint: disable=protected-access
+    return f"torch.{name}({', '.join(map(self._print, expr.args))})"
 
 
 class PyTorchCodePrinter(CodePrinter):
@@ -69,9 +71,13 @@ class PyTorchCodePrinter(CodePrinter):
     and call some methods from that printer where desired.
     """
 
+    # NOTE(aaron): We need to override this from the value set by StrPrinter, so that we don't use
+    # expressions' implementations of `_sympystr`, even though we don't make use of `_pytorch`.
+    printmethod = "_pytorch"
+
     known_functions = _known_functions_torch
     language = "Python"
-    _default_settings = dict(CodePrinter._default_settings, human=False)
+    _default_settings = dict(CodePrinter._default_settings, human=False)  # noqa: SLF001
 
     def __init__(self, settings: T.Optional[T.Mapping[str, T.Any]] = None):
         if settings and settings.get("human", False):
@@ -86,7 +92,8 @@ class PyTorchCodePrinter(CodePrinter):
             )
         return result
 
-    def _format_code(self, lines: T.List[str]) -> T.List[str]:
+    @staticmethod
+    def _format_code(lines: T.List[str]) -> T.List[str]:
         return lines
 
     def _print_Mod(self, expr: sympy.Mod) -> str:
@@ -95,11 +102,12 @@ class PyTorchCodePrinter(CodePrinter):
     def _print_sign(self, expr: sympy.sign) -> str:
         return f"torch.sign({self._print(expr.args[0])})"
 
-    def _print_Pow(self, expr: sympy.Pow, rational: bool = False) -> str:  # pylint: disable=unused-argument
+    def _print_Pow(self, expr: sympy.Pow, rational: bool = False) -> str:
         # TODO(aaron): Optimize this?
         return f"torch.pow({self._print(expr.base)}, {self._print(expr.exp)})"
 
-    def _print_Rational(self, expr: sympy.Rational) -> str:
+    @staticmethod
+    def _print_Rational(expr: sympy.Rational) -> str:
         # This is py3-only, need decimal points if we want py2
         return f"torch.tensor({expr.p}/{expr.q}, **tensor_kwargs)"
 
@@ -109,7 +117,8 @@ class PyTorchCodePrinter(CodePrinter):
     def _print_frac(self, expr: sympy.frac) -> str:
         return self._print_Mod(sympy.Mod(expr.args[0], 1))
 
-    def _print_Integer(self, expr: sympy.Integer) -> str:
+    @staticmethod
+    def _print_Integer(expr: sympy.Integer) -> str:
         """
         Customizations:
             * Cast all integers to Tensor
@@ -123,7 +132,8 @@ class PyTorchCodePrinter(CodePrinter):
         """
         return f"torch.tensor({super()._print_NumberSymbol(expr)}, **tensor_kwargs)"
 
-    def _print_Zero(self, expr: sympy.Expr) -> str:
+    @staticmethod
+    def _print_Zero(expr: sympy.Expr) -> str:
         """
         Customizations:
             * Cast Zero to Tensor
@@ -170,6 +180,10 @@ class PyTorchCodePrinter(CodePrinter):
     def _print_gamma(self, expr: sympy.functions.special.gamma_functions.gamma) -> str:
         # PyTorch does not have the gamma function, this is the best we can do
         return f"torch.lgamma({self._print(expr.args[0])}).exp()"
+
+    def _print_SignNoZero(self, expr: sf.SymPySignNoZero) -> str:
+        arg = self._print(expr.args[0])
+        return f"torch.copysign(torch.tensor(1.0, **tensor_kwargs), {arg})"
 
 
 for k in _known_functions_torch:

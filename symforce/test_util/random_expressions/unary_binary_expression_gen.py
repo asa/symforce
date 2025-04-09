@@ -59,11 +59,15 @@ class UnaryBinaryExpressionGen:
         self.ops = list(self.unary_ops) + list(self.binary_ops)
         self.ops_dict = {op.name: op for op in self.ops}
 
-        self.unary_ops_probs = np.array([op.prob for op in self.unary_ops])
-        self.unary_ops_probs = self.unary_ops_probs / sum(self.unary_ops_probs)
+        self.unary_ops_probs: np.ndarray = np.array(
+            [op.prob for op in self.unary_ops], dtype=np.float64
+        )
+        self.unary_ops_probs /= sum(self.unary_ops_probs)
 
-        self.binary_ops_probs = np.array([op.prob for op in self.binary_ops])
-        self.binary_ops_probs = self.binary_ops_probs / sum(self.binary_ops_probs)
+        self.binary_ops_probs: np.ndarray = np.array(
+            [op.prob for op in self.binary_ops], dtype=np.float64
+        )
+        self.binary_ops_probs /= sum(self.binary_ops_probs)
 
         # D[e][n] represents the number of different binary trees with n nodes
         # that can be generated from e empty nodes
@@ -138,7 +142,7 @@ class UnaryBinaryExpressionGen:
 
         e = np.random.choice(2 * nb_empty, p=np_probs)
         arity = 1 if e < nb_empty else 2
-        e = e % nb_empty
+        e %= nb_empty
 
         return e, arity
 
@@ -162,9 +166,9 @@ class UnaryBinaryExpressionGen:
 
             # The annotations in numpy are wrong, and don't include the Sequence[Any] overload
             if arity == 1:
-                op = np.random.choice(self.unary_ops, p=self.unary_ops_probs)  # type: ignore
+                op = np.random.choice(self.unary_ops, p=self.unary_ops_probs)  # type: ignore[arg-type]
             else:
-                op = np.random.choice(self.binary_ops, p=self.binary_ops_probs)  # type: ignore
+                op = np.random.choice(self.binary_ops, p=self.binary_ops_probs)  # type: ignore[arg-type]
 
             e += arity - 1 - k  # created empty nodes - skipped future leaves
             t_leaves += arity - 1  # update number of total leaves
@@ -180,7 +184,7 @@ class UnaryBinaryExpressionGen:
 
         # insert leaves into tree
         leaves = [np.random.choice(self.leaves) for _ in range(t_leaves)]
-        for i in range(len(stack)):  # pylint: disable=consider-using-enumerate
+        for i in range(len(stack)):
             if stack[i] is None:
                 stack[i] = leaves.pop()
 
@@ -209,8 +213,7 @@ class UnaryBinaryExpressionGen:
             elif t in self.leaves:
                 return T.cast(sf.Scalar, t), seq[1:]
             else:
-                assert f"Unknown: {t}"
-                return 0, []  # Just for mypy..
+                assert False, f"Unknown: {t}"
 
         return _seq_to_expr(seq)[0]
 

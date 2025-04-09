@@ -91,7 +91,7 @@ class {{enumtype.name}}
          * message type, and is a fingerprint on the message type definition, not on
          * the message contents.
          */
-        constexpr static int64_t getHash();
+        constexpr static uint64_t getHash();
 
         using type_name_array_t = const char[{{enumtype.name|length + 1}}];
 
@@ -101,6 +101,10 @@ class {{enumtype.name}}
          * Returns "{{enumtype.name}}"
          */
         inline static constexpr const char* getTypeName();
+
+        using package_name_array_t = const char[{{enumtype.namespace|length + 1}}];
+
+        inline static constexpr package_name_array_t* getPackageNameArrayPtr();
 
         /**
          * Returns "{{enumtype.namespace}}"
@@ -129,9 +133,9 @@ constexpr {{enumtype.name}}::{{enumtype.name}}(
 {{ size_t }} {{enumtype.name}}::encode(void *buf, {{ size_t }} offset, {{ size_t }} maxlen) const
 {
     {{ size_t }} pos = 0, tlen;
-    int64_t hash = (int64_t)getHash();
+    uint64_t hash = getHash();
 
-    tlen = __int64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
+    tlen = __uint64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if(tlen < 0) return tlen; else pos += tlen;
 
     tlen = this->_encodeNoHash(buf, offset + pos, maxlen - pos);
@@ -144,10 +148,10 @@ constexpr {{enumtype.name}}::{{enumtype.name}}(
 {
     {{ size_t }} pos = 0, thislen;
 
-    int64_t msg_hash;
-    thislen = __int64_t_decode_array(buf, offset + pos, maxlen - pos, &msg_hash, 1);
+    uint64_t hash;
+    thislen = __uint64_t_decode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if (thislen < 0) return thislen; else pos += thislen;
-    if (msg_hash != getHash()) return -1;
+    if (hash != getHash()) return -1;
 
     thislen = this->_decodeNoHash(buf, offset + pos, maxlen - pos);
     if (thislen < 0) return thislen; else pos += thislen;
@@ -160,7 +164,7 @@ constexpr {{enumtype.name}}::{{enumtype.name}}(
     return 8 + _getEncodedSizeNoHash();
 }
 
-constexpr int64_t {{enumtype.name}}::getHash()
+constexpr uint64_t {{enumtype.name}}::getHash()
 {
     return _computeHash(NULL);
 }
@@ -174,9 +178,13 @@ constexpr const char* {{enumtype.name}}::getTypeName()
     return *{{enumtype.name}}::getTypeNameArrayPtr();
 }
 
+constexpr {{enumtype.name}}::package_name_array_t* {{enumtype.name}}::getPackageNameArrayPtr() {
+    return &"{{enumtype.namespace}}";
+}
+
 constexpr const char * {{enumtype.name}}::getPackageName()
 {
-    return "{{enumtype.namespace}}";
+    return *{{enumtype.name}}::getPackageNameArrayPtr();
 }
 
 {{ size_t }} {{enumtype.name}}::_encodeNoHash(void *buf, {{ size_t }} offset, {{ size_t }} maxlen) const

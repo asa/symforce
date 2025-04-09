@@ -4,13 +4,9 @@
 # Do NOT modify by hand.
 # -----------------------------------------------------------------------------
 
-# pylint: disable=useless-suppression
-# pylint: disable=too-many-locals
-# pylint: disable=too-many-lines
-# pylint: disable=too-many-statements
-# pylint: disable=unused-argument
+# ruff: noqa: F401, PLR0912, PLR0913, PLR0914, PLR0915, PLR0917, RUF100
 
-import math  # pylint: disable=unused-import
+import math
 import typing as T
 
 import torch
@@ -38,7 +34,7 @@ def _broadcast_and_stack(tensors, dim=-1):
 
 
 def backend_test_function(x, y, tensor_kwargs=None):
-    # type: (torch.Tensor, torch.Tensor, T.Optional[TensorKwargs]) -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+    # type: (torch.Tensor, torch.Tensor, T.Optional[TensorKwargs]) -> T.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
     """
     Given input symbols `x` and `y`, return a list of expressions which provide good test coverage
     over symbolic functions supported by symforce.
@@ -64,7 +60,7 @@ def backend_test_function(x, y, tensor_kwargs=None):
     default to the device and dtype of the first input tensor, or the empty dict if there are no inputs.
     """
 
-    # Total ops: 53
+    # Total ops: 55
 
     # Deduce expected tensor device and dtype if not provided
     if tensor_kwargs is None:
@@ -114,34 +110,36 @@ def backend_test_function(x, y, tensor_kwargs=None):
     _res29 = torch.floor(x)
     _res30 = torch.ceil(x)
     _res31 = _tmp3
-    _res32 = torch.lgamma(x)
-    _res33 = torch.erfc(x)
-    _res34 = torch.asinh(x)
-    _res35 = torch.acosh(x)
-    _res36 = torch.atanh(x)
-    _res37 = torch.erf(x)
-    _res38 = torch.lgamma(x).exp()
-    _res39 = torch.remainder(
+    _res32 = torch.asinh(x)
+    _res33 = torch.acosh(x)
+    _res34 = torch.atanh(x)
+    _res35 = torch.remainder(
         torch.tensor(1.0, **tensor_kwargs) * x, torch.tensor(5.5, **tensor_kwargs)
     )
-    _res40 = x + torch.tensor(1, **tensor_kwargs)
-    _res41 = torch.tensor(2, **tensor_kwargs) * x
-    _res42 = torch.pow(x, torch.tensor(2, **tensor_kwargs))
-    _res43 = torch.pow(x, torch.tensor(3, **tensor_kwargs))
-    _res44 = torch.pow(x, torch.tensor(4, **tensor_kwargs))
-    _res45 = torch.pow(x, torch.tensor(5, **tensor_kwargs))
-    _res46 = _tmp3
-    _res47 = torch.pow(x, torch.tensor(3 / 2, **tensor_kwargs))
-    _res48 = torch.heaviside(x, values=torch.tensor(1.0, **tensor_kwargs))
-    _res49 = torch.atan2(x, y)
-    _res50 = torch.maximum(x, y)
-    _res51 = torch.minimum(x, y)
-    _res52 = torch.remainder(x, y)
-    _res53 = _tmp4
-    _res54 = x * y
-    _res55 = torch.pow(x, y)
-    _res56 = torch.pow(_tmp4, torch.tensor(2, **tensor_kwargs))
-    _res57 = torch.pow(_tmp4, torch.tensor(3, **tensor_kwargs))
+    _res36 = x + torch.tensor(1, **tensor_kwargs)
+    _res37 = torch.tensor(2, **tensor_kwargs) * x
+    _res38 = torch.pow(x, torch.tensor(2, **tensor_kwargs))
+    _res39 = torch.pow(x, torch.tensor(3, **tensor_kwargs))
+    _res40 = torch.pow(x, torch.tensor(4, **tensor_kwargs))
+    _res41 = torch.pow(x, torch.tensor(5, **tensor_kwargs))
+    _res42 = _tmp3
+    _res43 = torch.pow(x, torch.tensor(3 / 2, **tensor_kwargs))
+    _res44 = torch.heaviside(x, values=torch.tensor(1.0, **tensor_kwargs))
+    _res45 = torch.copysign(torch.tensor(1.0, **tensor_kwargs), x)
+    _res46 = torch.lgamma(x)
+    _res47 = torch.erfc(x)
+    _res48 = torch.erf(x)
+    _res49 = torch.lgamma(x).exp()
+    _res50 = torch.atan2(x, y)
+    _res51 = torch.maximum(x, y)
+    _res52 = torch.minimum(x, y)
+    _res53 = torch.remainder(x, y)
+    _res54 = _tmp4
+    _res55 = x * y
+    _res56 = torch.pow(x, y)
+    _res57 = torch.pow(_tmp4, torch.tensor(2, **tensor_kwargs))
+    _res58 = torch.pow(_tmp4, torch.tensor(3, **tensor_kwargs))
+    _res59 = torch.copysign(x, y)
 
     return (
         _res0,
@@ -202,4 +200,6 @@ def backend_test_function(x, y, tensor_kwargs=None):
         _res55,
         _res56,
         _res57,
+        _res58,
+        _res59,
     )

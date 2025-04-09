@@ -19,7 +19,6 @@ class DualQuaternion(Group):
     and in applications to 3D computer graphics, robotics and computer vision.
 
     References:
-
         https://en.wikipedia.org/wiki/Dual_quaternion
     """
 
@@ -82,13 +81,11 @@ class DualQuaternion(Group):
         """
         return self.compose(right)
 
-    def __div__(self, scalar: T.Scalar) -> DualQuaternion:
+    def __truediv__(self, scalar: T.Scalar) -> DualQuaternion:
         """
         Scalar division.
         """
         return DualQuaternion(self.real_q / scalar, self.inf_q / scalar)
-
-    __truediv__ = __div__
 
     def squared_norm(self) -> T.Scalar:
         """

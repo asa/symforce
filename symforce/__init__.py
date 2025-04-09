@@ -20,13 +20,6 @@ from dataclasses import dataclass
 from types import ModuleType
 
 # -------------------------------------------------------------------------------------------------
-# Version
-# -------------------------------------------------------------------------------------------------
-
-# isort: split
-from ._version import version as __version__
-
-# -------------------------------------------------------------------------------------------------
 # Logging configuration
 # -------------------------------------------------------------------------------------------------
 
@@ -65,6 +58,34 @@ def set_log_level(log_level: str) -> None:
 
 # Set default
 set_log_level(os.environ.get("SYMFORCE_LOGLEVEL", "INFO"))
+
+# -------------------------------------------------------------------------------------------------
+# Version
+# -------------------------------------------------------------------------------------------------
+
+# isort: split
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version
+
+try:
+    __version__ = version("symforce")
+except PackageNotFoundError:
+    logger.debug(
+        "symforce package is not being run from an installed context; falling back to"
+        " setuptools_scm for __version__"
+    )
+
+    try:
+        import setuptools_scm
+    except ImportError:
+        # setuptools_scm isn't required to be installed
+        logger.debug("setuptools_scm not installed; __version__ will not be set")
+    else:
+        try:
+            __version__ = setuptools_scm.get_version(root="..", relative_to=__file__)
+        except LookupError:
+            logger.debug("setuptools_scm failed to find version; __version__ will not be set")
+
 
 # -------------------------------------------------------------------------------------------------
 # Symbolic API configuration
@@ -131,7 +152,7 @@ def _find_symengine() -> ModuleType:
 
         try:
             spec.loader.exec_module(symengine)
-        except:  # pylint: disable=bare-except
+        except:
             # If executing the module fails for any reason, it shouldn't be in `sys.modules`
             del sys.modules["symengine"]
             raise
@@ -145,7 +166,7 @@ _have_imported_symbolic = False
 
 def _set_symbolic_api(sympy_module: T.Literal["sympy", "symengine"]) -> None:
     # Set this as the default symbolic API
-    global _symbolic_api  # pylint: disable=global-statement
+    global _symbolic_api  # noqa: PLW0603
     _symbolic_api = sympy_module
 
 
@@ -163,7 +184,7 @@ def _use_symengine() -> None:
 def _use_sympy() -> None:
     # Import just to make sure it's importable and fail here if it's not (as opposed to failing
     # later)
-    import sympy as sympy_py  # pylint: disable=unused-import
+    import sympy as sympy_py
 
     _set_symbolic_api("sympy")
 
@@ -260,7 +281,7 @@ def _set_epsilon(new_epsilon: T.Any) -> None:
     Args:
         new_epsilon: The new default epsilon to use
     """
-    global _epsilon  # pylint: disable=global-statement
+    global _epsilon  # noqa: PLW0603
 
     if _have_used_epsilon and new_epsilon != _epsilon:
         raise AlreadyUsedEpsilon(

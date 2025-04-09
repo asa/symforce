@@ -11,6 +11,8 @@
 // types or return types are any of specialized lcm types.
 // -----------------------------------------------------------------------------
 
+// IWYU pragma: always_keep
+
 #pragma once
 
 #include <fmt/format.h>
@@ -24,7 +26,10 @@ namespace detail {
 template <typename LCMType>
 struct type_caster<
     LCMType, enable_if_t<std::is_same<decltype(LCMType::getTypeName()), const char*>::value>> {
-  PYBIND11_TYPE_CASTER(LCMType, _(*LCMType::getTypeNameArrayPtr()));
+  PYBIND11_TYPE_CASTER(LCMType, const_name("lcmtypes.") +
+                                    const_name(*LCMType::getPackageNameArrayPtr()) +
+                                    const_name("._") + const_name(*LCMType::getTypeNameArrayPtr()) +
+                                    const_name(".") + const_name(*LCMType::getTypeNameArrayPtr()));
 
   bool load(const handle src, bool /* implicit_conversion */) {
     // Converts src (a thin wrapper of a PyObject*) to a T, and assigns to value (a member of the
@@ -62,8 +67,7 @@ struct type_caster<
     const py::object lcm_py_type =
         py::module_::import(module_path.c_str()).attr(LCMType::getTypeName());
     py::object result = lcm_py_type.attr("decode")(msg_bytes);
-    result.inc_ref();
-    return std::move(result);
+    return result.release();
   }
 };
 

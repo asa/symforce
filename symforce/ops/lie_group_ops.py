@@ -36,7 +36,6 @@ class LieGroupOps(GroupOps):
     differentiable chart.
 
     References:
-
         * https://en.wikipedia.org/wiki/Manifold
         * https://en.wikipedia.org/wiki/Differentiable_manifold
         * https://en.wikipedia.org/wiki/Lie_group
@@ -150,6 +149,37 @@ class LieGroupOps(GroupOps):
         return LieGroupOps.retract(
             a, [c * alpha for c in LieGroupOps.local_coordinates(a, b, epsilon)], epsilon
         )
+
+    @staticmethod
+    def jacobian(a: T.Element, b: T.Element, tangent_space: bool = True) -> geo.Matrix:
+        """
+        Computes the jacobian of a with respect to b
+
+        If tangent_space is True, the jacobian is computed in the local coordinates of the tangent
+        spaces around self and X. If tangent_space is False, the jacobian is computed in the storage
+        spaces of self and X.
+
+        See Also:
+            :func:`symforce.jacobian_helpers.tangent_jacobians`
+            :func:`symforce.ops.interfaces.lie_group.LieGroup.jacobian`
+
+        Returns: the jacobian matrix of shape MxN, where M is the dimension of the tangent (or
+            storage) space of a and N is the dimension of the tangent (or storage) space of b.
+        """
+        if tangent_space:
+            from symforce import jacobian_helpers
+
+            return jacobian_helpers.tangent_jacobians(a, [b])[0]
+        else:
+            from symforce import geo
+            from symforce import ops
+
+            return geo.Matrix(
+                [
+                    [ai.diff(bi) for bi in ops.StorageOps.to_storage(b)]
+                    for ai in ops.StorageOps.to_storage(a)
+                ]
+            )
 
     @staticmethod
     def storage_D_tangent(a: T.Element) -> geo.Matrix:

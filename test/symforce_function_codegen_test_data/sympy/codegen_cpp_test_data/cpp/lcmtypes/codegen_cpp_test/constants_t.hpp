@@ -67,7 +67,7 @@ class constants_t
          * message type, and is a fingerprint on the message type definition, not on
          * the message contents.
          */
-        constexpr static int64_t getHash();
+        constexpr static uint64_t getHash();
 
         using type_name_array_t = const char[12];
 
@@ -77,6 +77,10 @@ class constants_t
          * Returns "constants_t"
          */
         inline static constexpr const char* getTypeName();
+
+        using package_name_array_t = const char[17];
+
+        inline static constexpr package_name_array_t* getPackageNameArrayPtr();
 
         /**
          * Returns "codegen_cpp_test"
@@ -105,21 +109,36 @@ class constants_t
             }};
         }
 
-        // Return true if field was found
-        bool format_field(std::ostream& _stream, uint16_t field_index, uint16_t _indent) const
+        // Given a string field path, translate the entire path to field / list indices within this struct.
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field.
+        static uint32_t translate_fields(const char* const _fields[], uint32_t _field_indices_out[], uint32_t _num_fields) {
+            if (strcmp(_fields[0], fields()[0]) == 0) {
+                _field_indices_out[0] = 0;
+                uint32_t ret = lcm::translate_fields<decltype(constants_t::epsilon)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            return 1;
+
+        }
+
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field.
+        uint32_t show_field(std::ostream& _stream, const uint32_t _field_indices[], uint32_t _num_fields, uint32_t _indent) const
         {
-            switch (field_index) {
+            uint32_t ret;
+            switch (_field_indices[0]) {
                 case 0:
-                lcm::format_json(_stream, epsilon, _indent);
-                return true;
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, epsilon, _indent);
+                return ret == 0 ? ret : ret + 1;
                 default:
-                return false;
+                return 1;
             }
         }
 
         // Ability to print to standard streams as well as the fmt library.
         friend std::ostream& operator<<(std::ostream& _stream, const constants_t& obj) {
-            lcm::format_json(_stream, obj, 0);
+            lcm::show_field(_stream, nullptr, 0, obj, 0);
             return _stream;
         }
 
@@ -134,16 +153,16 @@ class constants_t
         // Return value is 0 if the operation succeeded.
         // If the operation failed, return value is equal to 1 + the index of the first invalid field,
         // 1 + field_size if there are not enough fields, or 2 + field_size if the value is invalid.
-        __attribute__((nodiscard)) uint16_t store_field(const char* _fields[], uint16_t _num_fields, const char* _value)
+        __attribute__((nodiscard)) uint32_t store_field(const uint32_t _field_indices[], uint32_t _num_fields, const char* const _value)
         {
-            if (_num_fields == 0 || _fields[0] == nullptr) {
+            uint32_t ret;
+            switch (_field_indices[0]) {
+                case 0:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, epsilon, _value);
+                return ret == 0 ? ret : ret + 1;
+                default:
                 return 1;
             }
-            if (strcmp(_fields[0], fields()[0]) == 0) {
-                uint16_t ret = lcm::store_field(_fields + 1, _num_fields - 1, epsilon, _value);
-                return ret == 0 ? ret : ret + 1;
-            }
-            return 1;
         }
 #endif
 };
@@ -155,9 +174,9 @@ constants_t::constants_t(
 __lcm_buffer_size constants_t::encode(void *buf, __lcm_buffer_size offset, __lcm_buffer_size maxlen) const
 {
     __lcm_buffer_size pos = 0, tlen;
-    int64_t hash = (int64_t)getHash();
+    uint64_t hash = getHash();
 
-    tlen = __int64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
+    tlen = __uint64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if(tlen < 0) return tlen; else pos += tlen;
 
     tlen = this->_encodeNoHash(buf, offset + pos, maxlen - pos);
@@ -170,10 +189,10 @@ __lcm_buffer_size constants_t::decode(const void *buf, __lcm_buffer_size offset,
 {
     __lcm_buffer_size pos = 0, thislen;
 
-    int64_t msg_hash;
-    thislen = __int64_t_decode_array(buf, offset + pos, maxlen - pos, &msg_hash, 1);
+    uint64_t hash;
+    thislen = __uint64_t_decode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if (thislen < 0) return thislen; else pos += thislen;
-    if (msg_hash != getHash()) return -1;
+    if (hash != getHash()) return -1;
 
     thislen = this->_decodeNoHash(buf, offset + pos, maxlen - pos);
     if (thislen < 0) return thislen; else pos += thislen;
@@ -186,9 +205,9 @@ __lcm_buffer_size constants_t::getEncodedSize() const
     return 8 + _getEncodedSizeNoHash();
 }
 
-constexpr int64_t constants_t::getHash()
+constexpr uint64_t constants_t::getHash()
 {
-    return static_cast<int64_t>(_computeHash(NULL));
+    return _computeHash(NULL);
 }
 
 constexpr constants_t::type_name_array_t* constants_t::getTypeNameArrayPtr() {
@@ -200,9 +219,13 @@ constexpr const char* constants_t::getTypeName()
     return *constants_t::getTypeNameArrayPtr();
 }
 
+constexpr constants_t::package_name_array_t* constants_t::getPackageNameArrayPtr() {
+    return &"codegen_cpp_test";
+}
+
 constexpr const char * constants_t::getPackageName()
 {
-    return "codegen_cpp_test";
+    return *constants_t::getPackageNameArrayPtr();
 }
 
 __lcm_buffer_size constants_t::_encodeNoHash(void *buf, __lcm_buffer_size offset, __lcm_buffer_size maxlen) const

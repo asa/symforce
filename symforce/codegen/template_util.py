@@ -10,7 +10,6 @@ import enum
 import functools
 import os
 import textwrap
-import warnings
 from pathlib import Path
 
 import jinja2
@@ -23,6 +22,7 @@ from symforce.codegen.codegen_config import RenderTemplateConfig
 
 CURRENT_DIR = Path(__file__).parent
 LCM_TEMPLATE_DIR = CURRENT_DIR / "lcm_templates"
+PYBIND_TEMPLATE_DIR = CURRENT_DIR / "pybind_templates"
 
 
 class FileType(enum.Enum):
@@ -34,12 +34,13 @@ class FileType(enum.Enum):
     MAKEFILE = enum.auto()
     TYPESCRIPT = enum.auto()
     TOML = enum.auto()
+    RUST = enum.auto()
 
     @staticmethod
     def from_extension(extension: str) -> FileType:
-        if extension in ("c", "cpp", "cxx", "cc", "tcc", "h", "hpp", "hxx", "hh"):
+        if extension in {"c", "cpp", "cxx", "cc", "tcc", "h", "hpp", "hxx", "hh"}:
             return FileType.CPP
-        elif extension in ("cu", "cuh"):
+        elif extension in {"cu", "cuh"}:
             return FileType.CUDA
         elif extension == "py":
             return FileType.PYTHON
@@ -53,6 +54,8 @@ class FileType(enum.Enum):
             return FileType.TYPESCRIPT
         elif extension == "toml":
             return FileType.TOML
+        elif extension == "rs":
+            return FileType.RUST
         else:
             raise ValueError(f"Could not get FileType from extension {extension}")
 
@@ -69,9 +72,9 @@ class FileType(enum.Enum):
         """
         Return the comment prefix for this file type.
         """
-        if self in (FileType.CPP, FileType.CUDA, FileType.LCM):
+        if self in {FileType.CPP, FileType.CUDA, FileType.LCM, FileType.RUST}:
             return "//"
-        elif self in (FileType.PYTHON, FileType.PYTHON_INTERFACE, FileType.TOML):
+        elif self in {FileType.PYTHON, FileType.PYTHON_INTERFACE, FileType.TOML}:
             return "#"
         else:
             raise NotImplementedError(f"Unknown comment prefix for {self}")
@@ -96,14 +99,18 @@ class FileType(enum.Enum):
         # place for auto-format logic, but I thought it was better centralized here than down below
         # hidden in a function. We might want to somehow pass the config through to render a
         # template so we can move things into the backend code. (tag=centralize-language-diffs)
-        if self in (FileType.CPP, FileType.CUDA):
+        if self in {FileType.CPP, FileType.CUDA}:
             return format_util.format_cpp(
                 file_contents, filename=str(CURRENT_DIR / format_filename)
             )
-        elif self in (FileType.PYTHON, FileType.PYTHON_INTERFACE):
+        elif self in {FileType.PYTHON, FileType.PYTHON_INTERFACE}:
             return format_util.format_py(file_contents, filename=str(CURRENT_DIR / format_filename))
         elif self == FileType.LCM:
             return file_contents
+        elif self == FileType.RUST:
+            return format_util.format_rust(
+                file_contents, filename=str(CURRENT_DIR / format_filename)
+            )
         else:
             raise NotImplementedError(f"Unknown autoformatter for {self}")
 
@@ -115,7 +122,8 @@ class RelEnvironment(jinja2.Environment):
     https://stackoverflow.com/questions/8512677/how-to-include-a-template-with-relative-path-in-jinja2
     """
 
-    def join_path(self, template: T.Union[jinja2.Template, str], parent: str) -> str:
+    @staticmethod
+    def join_path(template: T.Union[jinja2.Template, str], parent: str) -> str:
         return os.path.normpath(os.path.join(os.path.dirname(parent), str(template)))
 
 
@@ -206,11 +214,6 @@ def render_template(
             file_contents=rendered_str,
             template_name=template_path,
             output_path=output_path,
-        )
-    else:
-        warnings.warn(
-            "Config.autoformat == False is deprecated, this option will be removed in a future release",
-            DeprecationWarning,
         )
 
     if output_path:

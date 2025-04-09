@@ -13,10 +13,10 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
-#include "./ops/group_ops.h"
-#include "./ops/lie_group_ops.h"
-#include "./ops/storage_ops.h"
-#include "./util/epsilon.h"
+#include <sym/ops/group_ops.h>
+#include <sym/ops/lie_group_ops.h>
+#include <sym/ops/storage_ops.h>
+#include <sym/util/epsilon.h>
 
 namespace sym {
 
@@ -97,6 +97,21 @@ class Rot2 {
    * A matrix representation of this element in the Euclidean space that contains it.
    */
   const Eigen::Matrix<Scalar, 2, 2> ToRotationMatrix() const;
+
+  /**
+   * Create a Rot2 from a 2x2 rotation matrix.
+   *
+   * Returns the closest Rot2 to the input matrix, by the Frobenius norm.  Will be singular when
+   * ``r[0, 0] == -r[1, 1]`` and ``r[0, 1] == r[1, 0]`` are both true.
+   *
+   * See notebooks/rot2_from_rotation_matrix_derivation.ipynb for the derivation.
+   */
+  const static sym::Rot2<Scalar> FromRotationMatrix(const Eigen::Matrix<Scalar, 2, 2>& r);
+
+  /**
+   * Generate a random element of SO2 from a variable uniformly sampled on [0, 1].
+   */
+  const static sym::Rot2<Scalar> RandomFromUniformSample(const Scalar u1);
 
   // --------------------------------------------------------------------------
   // StorageOps concept
@@ -208,6 +223,10 @@ class Rot2 {
 
   bool operator==(const Rot2& rhs) const {
     return data_ == rhs.Data();
+  }
+
+  bool operator!=(const Rot2& rhs) const {
+    return !(*this == rhs);
   }
 
  protected:

@@ -282,9 +282,9 @@ def get_class_for_method(func: T.Callable) -> T.Type:
     if inspect.ismethod(func) or (
         inspect.isbuiltin(func)
         and getattr(func, "__self__", None) is not None
-        and getattr(getattr(func, "__self__"), "__class__", None) is not None
+        and getattr(func.__self__, "__class__", None) is not None
     ):
-        return getattr(getattr(func, "__self__"), "__class__")
+        return func.__self__.__class__
     if inspect.isfunction(func):
         cls = getattr(
             inspect.getmodule(func),
@@ -293,7 +293,9 @@ def get_class_for_method(func: T.Callable) -> T.Type:
         )
         if isinstance(cls, type):
             return cls
-    return getattr(func, "__objclass__")  # handle special descriptor objects
+
+    # handle special descriptor objects
+    return func.__objclass__  # type: ignore[attr-defined]
 
 
 class AttrDict(dict):
@@ -317,3 +319,48 @@ class AttrDict(dict):
 
         def __setattr__(self, name: str, value: T.Any) -> None:
             pass
+
+
+_astral_paths: T.Dict[str, str] = {}
+
+
+def _find_astral_bin(name: str) -> str:
+    """
+    Find the ruff or uv binary
+
+    `find_ruff_bin`/`find_uv_bin` do not work in all environments, for example it does not work on
+    debian when things are installed in `/usr/local/bin` and `sysconfig` only returns `/usr/bin`.
+    Adding `shutil.which` should cover most cases, but not all, the better solution would require
+    `ruff`/`uv` putting the binary in `data` like `clang-format` does
+    """
+    if name == "ruff":
+        from ruff.__main__ import find_ruff_bin
+
+        finder = find_ruff_bin
+    elif name == "uv":
+        from uv import find_uv_bin
+
+        finder = find_uv_bin
+    else:
+        raise ValueError(f"Unknown binary name {name}")
+
+    try:
+        path = finder()
+    except FileNotFoundError as ex:
+        path = shutil.which(name)
+        if path is None:
+            raise FileNotFoundError(f"Could not find {name}") from ex
+
+    return path
+
+
+def find_ruff_bin() -> str:
+    if "ruff" not in _astral_paths:
+        _astral_paths["ruff"] = _find_astral_bin("ruff")
+    return _astral_paths["ruff"]
+
+
+def find_uv_bin() -> str:
+    if "uv" not in _astral_paths:
+        _astral_paths["uv"] = _find_astral_bin("uv")
+    return _astral_paths["uv"]

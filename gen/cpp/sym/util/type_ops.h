@@ -18,6 +18,7 @@
 #include <sym/linear_camera_cal.h>
 #include <sym/ops/lie_group_ops.h>
 #include <sym/ops/storage_ops.h>
+#include <sym/orthographic_camera_cal.h>
 #include <sym/polynomial_camera_cal.h>
 #include <sym/pose2.h>
 #include <sym/pose3.h>
@@ -134,7 +135,9 @@ inline bool IsEigenType(const type_t type) {
     case type_t::LINEAR_CAMERA_CAL:
     case type_t::POLYNOMIAL_CAMERA_CAL:
     case type_t::SPHERICAL_CAMERA_CAL:
+    case type_t::ORTHOGRAPHIC_CAMERA_CAL:
     case type_t::DATABUFFER:
+    case type_t::PREINTEGRATED_IMU_MEASUREMENTS:
       return false;
     case type_t::INVALID:
       SYM_ASSERT(false, "Invalid type");
@@ -353,6 +356,8 @@ inline std::pair<int, int> EigenTypeShape(const type_t type) {
         return func<sym::PolynomialCameraCal<Scalar>>(args...);      \
       case type_t::SPHERICAL_CAMERA_CAL:                             \
         return func<sym::SphericalCameraCal<Scalar>>(args...);       \
+      case type_t::ORTHOGRAPHIC_CAMERA_CAL:                          \
+        return func<sym::OrthographicCameraCal<Scalar>>(args...);    \
       default:                                                       \
         SYM_ASSERT(false);                                           \
     }                                                                \
