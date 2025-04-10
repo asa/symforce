@@ -26,6 +26,7 @@ def format_cpp(file_contents: str, filename: str) -> str:
     Returns:
         formatted_file_contents (str): The contents of the file after formatting
     """
+    return ""
     try:
         import clang_format
 
