@@ -26,7 +26,8 @@ def format_cpp(file_contents: str, filename: str) -> str:
     Returns:
         formatted_file_contents (str): The contents of the file after formatting
     """
-    return ""
+    # skip formatting if clang-format is not installed
+    return file_contents
     try:
         import clang_format
 
@@ -57,7 +58,8 @@ def format_py(file_contents: str, filename: str) -> str:
             it's only used for ruff to find the correct style file (by traversing upwards from this
             location)
     """
-    return ""
+    # skip formatting if ruff is not installed
+    return file_contents
     result = subprocess.run(
         [find_ruff_bin(), "format", f"--stdin-filename={filename}", "-"],
         input=file_contents,
