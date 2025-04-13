@@ -62,8 +62,8 @@ bool CheckDerivatives(LinearizerType& linearizer, const Values<Scalar>& values,
             "Symbolic Jacobian:\n{}\n"
             "Numerical Jacobian:\n{}\n"
             "Additive Difference:\n{}",
-            linearization.jacobian, numerical_jacobian,
-            linearization.jacobian - numerical_jacobian);
+            fmt::streamed(linearization.jacobian), fmt::streamed(numerical_jacobian),
+            fmt::streamed(linearization.jacobian - numerical_jacobian));
       }
 
       success = false;
@@ -86,7 +86,7 @@ bool CheckDerivatives(LinearizerType& linearizer, const Values<Scalar>& values,
             "Symbolic (sym::Linearizer) Hessian:\n{}\n"
             "Numerical (J^T * J) Hessian:\n{}\n"
             "Additive Difference:\n{}",
-            full_hessian, numerical_hessian, full_hessian - numerical_hessian);
+            fmt::streamed(full_hessian), fmt::streamed(numerical_hessian), fmt::streamed(full_hessian - numerical_hessian));
       }
 
       success = false;

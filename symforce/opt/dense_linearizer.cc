@@ -8,6 +8,8 @@
 #include <tuple>
 
 #include "./internal/linearizer_utils.h"
+#include <fmt/ostream.h>
+#include <fmt/ranges.h>
 
 namespace sym {
 
@@ -194,10 +196,11 @@ void DenseLinearizer<Scalar>::InitialLinearization(const Values<Scalar>& values,
       }
 
       spdlog::warn(
-          "LM<{}>: Optimizing a factor that touches no optimized keys! Optimized input keys for "
-          "the factor are: {}",
-          name_, input_keys);
+          "LM<{}>: Optimizing a factor that touches no optimized keys! Optimized input keys for ",
+                //          "the factor are: {}",
+          fmt::streamed(name_)/*, fmt::streamed(input_keys)*/);
     }
+        
 
     internal::AssertConsistentShapes(tangent_dim, factor_linearization, include_jacobians_);
 
@@ -237,7 +240,7 @@ void DenseLinearizer<Scalar>::InitialLinearization(const Values<Scalar>& values,
     for (const auto& key : keys_) {
       if (keys_touched_by_factors.count(key) == 0) {
         throw std::runtime_error(
-            fmt::format("Key {} is in the state vector but is not optimized by any factor.", key));
+            fmt::format("Key {} is in the state vector but is not optimized by any factor.", fmt::streamed(key)));
       }
     }
   }
