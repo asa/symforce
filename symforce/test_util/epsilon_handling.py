@@ -9,7 +9,7 @@ from symforce import typing as T
 
 try:
     # Attempt, works if we're in ipython
-    _default_display_func = display  # type: ignore
+    _default_display_func = display  # type: ignore[name-defined]
 except NameError:
     _default_display_func = print
 
@@ -24,8 +24,8 @@ def is_value_with_epsilon_correct(
     func: T.Callable[[sf.Scalar, sf.Scalar], sf.Expr],
     singularity: sf.Scalar = 0,
     limit_direction: str = "+",
-    display_func: T.Callable[[T.Any], None] = _default_display_func,
-    expected_value: sf.Scalar = None,
+    display_func: T.Optional[T.Callable[[T.Any], None]] = _default_display_func,
+    expected_value: T.Optional[sf.Scalar] = None,
 ) -> bool:
     """
     Check epsilon handling for the value of a function that accepts a single value and an epsilon.
@@ -59,7 +59,7 @@ def is_value_with_epsilon_correct(
     # Sub in zero
     expr_eps_at_x_zero = expr_eps.subs(x, singularity)
     if expr_eps_at_x_zero == sf.S.NaN:
-        if display_func:
+        if display_func is not None:
             display_func("Expressions (raw / eps):")
             display_func(expr_raw)
             display_func(expr_eps)
@@ -75,7 +75,7 @@ def is_value_with_epsilon_correct(
     value_x0_eps = expr_eps.subs(x, singularity)
     value_x0_eps_sub2 = _limit_and_simplify(value_x0_eps, epsilon, 0, "+")
     if value_x0_eps_sub2 != value_x0_raw:
-        if display_func:
+        if display_func is not None:
             # Only show the original expressions if we didn't show already
             if is_correct:
                 display_func("Expressions (raw / eps):")
@@ -95,8 +95,8 @@ def is_derivative_with_epsilon_correct(
     func: T.Callable[[sf.Scalar, sf.Scalar], sf.Expr],
     singularity: sf.Scalar = 0,
     limit_direction: str = "+",
-    display_func: T.Callable[[T.Any], None] = _default_display_func,
-    expected_derivative: sf.Scalar = None,
+    display_func: T.Optional[T.Callable[[T.Any], None]] = _default_display_func,
+    expected_derivative: T.Optional[sf.Scalar] = None,
 ) -> bool:
     """
     Check epsilon handling for the derivative of a function that accepts a single value and an
@@ -136,7 +136,7 @@ def is_derivative_with_epsilon_correct(
     derivative_x0_eps = expr_eps.diff(x).subs(x, singularity)
     derivative_x0_eps_sub2 = _limit_and_simplify(derivative_x0_eps, epsilon, 0, "+")
     if derivative_x0_eps_sub2 != derivative_x0_raw:
-        if display_func:
+        if display_func is not None:
             display_func("Expressions (raw / eps):")
             display_func(expr_raw)
             display_func(expr_eps)
@@ -156,9 +156,9 @@ def is_epsilon_correct(
     func: T.Callable[[sf.Scalar, sf.Scalar], sf.Scalar],
     singularity: sf.Scalar = 0,
     limit_direction: str = "+",
-    display_func: T.Callable[[T.Any], None] = _default_display_func,
-    expected_value: sf.Scalar = None,
-    expected_derivative: sf.Scalar = None,
+    display_func: T.Optional[T.Callable[[T.Any], None]] = _default_display_func,
+    expected_value: T.Optional[sf.Scalar] = None,
+    expected_derivative: T.Optional[sf.Scalar] = None,
 ) -> bool:
     """
     Check epsilon handling for a function that accepts a single value and an epsilon.

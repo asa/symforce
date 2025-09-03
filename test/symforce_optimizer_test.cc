@@ -3,31 +3,22 @@
  * This source code is under the Apache 2.0 license found in the LICENSE file.
  * ---------------------------------------------------------------------------- */
 
+#include <Eigen/OrderingMethods>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <spdlog/spdlog.h>
 
 #include <sym/factors/between_factor_pose3.h>
 #include <sym/factors/between_factor_rot3.h>
 #include <sym/factors/prior_factor_pose3.h>
 #include <sym/factors/prior_factor_rot3.h>
+#include <symforce/opt/linearization.h>
+#include <symforce/opt/optimization_stats.h>
 #include <symforce/opt/optimizer.h>
+#include <symforce/test_util/check_linear_error.h>
 
 sym::optimizer_params_t DefaultLmParams() {
-  sym::optimizer_params_t params{};
-  params.iterations = 50;
+  auto params = sym::DefaultOptimizerParams();
   params.verbose = true;
-  params.initial_lambda = 1.0;
-  params.lambda_up_factor = 4.0;
-  params.lambda_down_factor = 1 / 4.0;
-  params.lambda_lower_bound = 0.0;
-  params.lambda_upper_bound = 1000000.0;
-  params.early_exit_min_reduction = 0.0001;
-  params.use_unit_damping = true;
-  params.use_diagonal_damping = false;
-  params.keep_max_diagonal_damping = false;
-  params.diagonal_damping_min = 1e-6;
-  params.enable_bold_updates = false;
   return params;
 }
 
@@ -54,11 +45,12 @@ TEST_CASE("Test nonlinear convergence", "[optimizer]") {
   sym::Valuesd values;
   values.Set<double>('x', 0.0);
   values.Set<double>('y', 0.0);
-  spdlog::debug("Initial values: {}", values);
+  INFO("Initial values: " << values);
 
   // Set parameters
   sym::optimizer_params_t params = DefaultLmParams();
   params.initial_lambda = 10.0;
+  params.lambda_update_type = sym::lambda_update_type_t::STATIC;
   params.lambda_up_factor = 3.0;
   params.lambda_down_factor = 1.0 / 3.0;
   params.lambda_lower_bound = 0.01;
@@ -69,25 +61,22 @@ TEST_CASE("Test nonlinear convergence", "[optimizer]") {
   params.use_unit_damping = true;
 
   // Optimize
-  Optimize(params, factors, values);
+  const auto stats = Optimize(params, factors, values);
 
   // Check results
-  spdlog::debug("Optimized values: {}", values);
+  INFO("Optimized values: " << values);
 
   // Local minimum from Wolfram Alpha
-  // pylint: disable=line-too-long
   // https://www.wolframalpha.com/input/?i=z+%3D+3+-+0.5+*+sin((x+-+2)+%2F+5)+%2B+1.0+*+sin((y+%2B+2)+%2F+10.)
   const Eigen::Vector2d expected_gt = {9.854, -17.708};
   const Eigen::Vector2d actual = {values.At<double>('x'), values.At<double>('y')};
   CHECK((expected_gt - actual).norm() < 1e-3);
+
+  // Check success
+  CHECK(stats.status == sym::optimization_status_t::SUCCESS);
 }
 
-/**
- * Test manifold optimization of Pose3 in a simple chain where we have priors at the start and end
- * and between factors in the middle. When the priors are strong it should act as on-manifold
- * interpolation, and when the between factors are strong it should act as a mean.
- */
-TEST_CASE("Test pose smoothing", "[optimizer]") {
+std::pair<std::vector<sym::Factord>, sym::Valuesd> CreatePoseSmoothingProblem() {
   // Constants
   const double epsilon = 1e-10;
   const int num_keys = 10;
@@ -98,18 +87,18 @@ TEST_CASE("Test pose smoothing", "[optimizer]") {
   const double between_sigma = 0.5;      // [rad]
 
   // Set points (doing 180 rotation and 5m translation to keep it hard)
-  const sym::Pose3d prior_start =
-      sym::Pose3d(sym::Rot3d::FromYawPitchRoll(0.0, 0.0, 0.0), Eigen::Vector3d::Zero());
-  const sym::Pose3d prior_last =
-      sym::Pose3d(sym::Rot3d::FromYawPitchRoll(M_PI, 0.0, 0.0), Eigen::Vector3d(5, 0, 0));
+  const sym::Pose3d prior_start(sym::Rot3d::FromYawPitchRoll(0.0, 0.0, 0.0),
+                                Eigen::Vector3d::Zero());
+  const sym::Pose3d prior_last(sym::Rot3d::FromYawPitchRoll(M_PI, 0.0, 0.0),
+                               Eigen::Vector3d(5, 0, 0));
 
   // Simple wrapper to add a prior
   // TODO(hayk): Make a template specialization mechanism to generalize this to any geo type.
   const auto create_prior_factor = [&epsilon](const sym::Key& key, const sym::Pose3d& prior,
                                               const double sigma) {
     return sym::Factord::Jacobian(
-        [&prior, sigma, &epsilon](const sym::Pose3d& pose, sym::Vector6d* const res,
-                                  sym::Matrix66d* const jac) {
+        [prior, sigma, epsilon](const sym::Pose3d& pose, sym::Vector6d* const res,
+                                sym::Matrix66d* const jac) {
           const sym::Matrix66d sqrt_info = sym::Vector6d::Constant(1 / sigma).asDiagonal();
           sym::PriorFactorPose3<double>(pose, prior, sqrt_info, epsilon, res, jac);
         },
@@ -124,9 +113,9 @@ TEST_CASE("Test pose smoothing", "[optimizer]") {
   // Add between factors in a chain
   for (int i = 0; i < num_keys - 1; ++i) {
     factors.push_back(sym::Factord::Jacobian(
-        [&between_sigma, &epsilon](const sym::Pose3d& a, const sym::Pose3d& b,
-                                   sym::Vector6d* const res,
-                                   Eigen::Matrix<double, 6, 12>* const jac) {
+        [between_sigma, epsilon](const sym::Pose3d& a, const sym::Pose3d& b,
+                                 sym::Vector6d* const res,
+                                 Eigen::Matrix<double, 6, 12>* const jac) {
           const sym::Matrix66d sqrt_info = sym::Vector6d::Constant(1 / between_sigma).asDiagonal();
           const sym::Pose3d a_T_b = sym::Pose3d::Identity();
           sym::BetweenFactorPose3<double>(a, b, a_T_b, sqrt_info, epsilon, res, jac);
@@ -134,7 +123,7 @@ TEST_CASE("Test pose smoothing", "[optimizer]") {
         /* keys */ {{'P', i}, {'P', i + 1}}));
   }
 
-  // Create initial values as random pertubations from the first prior
+  // Create initial values as random perturbations from the first prior
   sym::Valuesd values;
   std::mt19937 gen(42);
   for (int i = 0; i < num_keys; ++i) {
@@ -142,34 +131,44 @@ TEST_CASE("Test pose smoothing", "[optimizer]") {
     values.Set<sym::Pose3d>({'P', i}, value);
   }
 
-  spdlog::debug("Initial values: {}", values);
-  spdlog::debug("Prior on P0: {}", prior_start);
-  spdlog::debug("Prior on P[-1]: {}", prior_last);
+  return {std::move(factors), std::move(values)};
+}
+
+/**
+ * Test manifold optimization of Pose3 in a simple chain where we have priors at the start and end
+ * and between factors in the middle. When the priors are strong it should act as on-manifold
+ * interpolation, and when the between factors are strong it should act as a mean.
+ */
+TEST_CASE("Test pose smoothing", "[optimizer]") {
+  auto [factors, values] = CreatePoseSmoothingProblem();
+
+  INFO("Initial values: " << values);
 
   // Optimize
   sym::optimizer_params_t params = DefaultLmParams();
   params.iterations = 50;
   params.early_exit_min_reduction = 0.0001;
+  params.debug_stats = true;
+  params.check_derivatives = true;
+  params.include_jacobians = true;
 
-  sym::Optimizer<double> optimizer(params, factors, epsilon, "sym::Optimize", {},
-                                   /* debug_stats */ false, /* check_derivatives */ true,
-                                   /* include_jacobians */ true);
+  sym::Optimizer<double> optimizer(params, factors);
   const auto stats = optimizer.Optimize(values);
 
-  spdlog::debug("Optimized values: {}", values);
+  INFO("Optimized values: " << values);
 
   const auto& last_iter = stats.iterations.back();
-  spdlog::debug("Iterations: {}", last_iter.iteration);
-  spdlog::debug("Lambda: {}", last_iter.current_lambda);
-  spdlog::debug("Final error: {}", last_iter.new_error);
 
   // Check successful convergence
   CHECK(last_iter.iteration == 12);
   CHECK(last_iter.current_lambda == Catch::Approx(0.0039).epsilon(1e-1));
   CHECK(last_iter.new_error == Catch::Approx(7.801).epsilon(1e-3));
+  CHECK(stats.status == sym::optimization_status_t::SUCCESS);
+
+  CheckLinearError(stats);
 
   // Check that H = J^T J
-  const sym::Linearizationd linearization = sym::Linearize<double>(factors, values);
+  const sym::SparseLinearizationd linearization = sym::Linearize<double>(factors, values);
   const Eigen::SparseMatrix<double> jtj =
       linearization.jacobian.transpose() * linearization.jacobian;
   CHECK(linearization.hessian_lower.triangularView<Eigen::Lower>().isApprox(
@@ -227,7 +226,7 @@ TEST_CASE("Test Rotation smoothing", "[optimizer]") {
         /* keys */ {{'R', i}, {'R', i + 1}}));
   }
 
-  // Create initial values as random pertubations from the first prior
+  // Create initial values as random perturbations from the first prior
   sym::Valuesd values;
   std::mt19937 gen(42);
   for (int i = 0; i < num_keys; ++i) {
@@ -235,32 +234,29 @@ TEST_CASE("Test Rotation smoothing", "[optimizer]") {
     values.Set<sym::Rot3d>({'R', i}, value);
   }
 
-  spdlog::debug("Initial values: {}", values);
-  spdlog::debug("Prior on R0: {}", prior_start);
-  spdlog::debug("Prior on R[-1]: {}", prior_last);
+  INFO("Initial values: " << values);
+  CAPTURE(prior_start, prior_last);
 
   // Optimize
   sym::optimizer_params_t params = DefaultLmParams();
   params.iterations = 50;
   params.early_exit_min_reduction = 0.0001;
 
-  sym::Optimizer<double> optimizer(params, factors, epsilon);
+  sym::Optimizer<double> optimizer(params, factors);
   const auto stats = optimizer.Optimize(values);
 
-  spdlog::debug("Optimized values: {}", values);
+  INFO("Optimized values: " << values);
 
   const auto& last_iter = stats.iterations.back();
-  spdlog::debug("Iterations: {}", last_iter.iteration);
-  spdlog::debug("Lambda: {}", last_iter.current_lambda);
-  spdlog::debug("Final error: {}", last_iter.new_error);
 
   // Check successful convergence
   CHECK(last_iter.iteration == 6);
   CHECK(last_iter.current_lambda == Catch::Approx(2.4e-4).epsilon(1e-1));
   CHECK(last_iter.new_error == Catch::Approx(2.174).epsilon(1e-3));
+  CHECK(stats.status == sym::optimization_status_t::SUCCESS);
 
   // Check that H = J^T J
-  const sym::Linearizationd linearization = sym::Linearize<double>(factors, values);
+  const sym::SparseLinearizationd linearization = sym::Linearize<double>(factors, values);
   const Eigen::SparseMatrix<double> jtj =
       linearization.jacobian.transpose() * linearization.jacobian;
   CHECK(linearization.hessian_lower.triangularView<Eigen::Lower>().isApprox(
@@ -307,7 +303,7 @@ TEST_CASE("Test nontrivial (frozen, out-of-order) keys", "[optimizer]") {
     }
   }
 
-  // Create initial values as random pertubations from the first prior
+  // Create initial values as random perturbations from the first prior
   sym::Valuesd values;
 
   std::mt19937 gen(42);
@@ -317,7 +313,7 @@ TEST_CASE("Test nontrivial (frozen, out-of-order) keys", "[optimizer]") {
     values.Set<sym::Rot3d>({'R', i}, value);
   }
 
-  spdlog::debug("Initial values: {}", values);
+  INFO("Initial values: " << values);
 
   // Optimize
   sym::optimizer_params_t params = DefaultLmParams();
@@ -329,23 +325,22 @@ TEST_CASE("Test nontrivial (frozen, out-of-order) keys", "[optimizer]") {
     optimized_keys.emplace_back('R', i);
   }
 
-  sym::Optimizer<double> optimizer(params, factors, epsilon, "sym::Optimizer", optimized_keys);
+  sym::Optimizer<double> optimizer(params, factors, "sym::Optimizer", optimized_keys);
   const auto stats = optimizer.Optimize(values);
 
-  spdlog::debug("Optimized values: {}", values);
+  INFO("Optimized values: " << values);
 
   const auto& last_iter = stats.iterations.back();
-  spdlog::debug("Iterations: {}", last_iter.iteration);
-  spdlog::debug("Lambda: {}", last_iter.current_lambda);
-  spdlog::debug("Final error: {}", last_iter.new_error);
 
   // Check successful convergence
   CHECK(last_iter.iteration == 5);
   CHECK(last_iter.current_lambda < 1e-3);
   CHECK(last_iter.new_error < 1e-15);
+  CHECK(stats.status == sym::optimization_status_t::SUCCESS);
 
   // Check that H = J^T J
-  const sym::Linearizationd linearization = sym::Linearize<double>(factors, values, optimized_keys);
+  const sym::SparseLinearizationd linearization =
+      sym::Linearize<double>(factors, values, optimized_keys);
   const Eigen::SparseMatrix<double> jtj =
       linearization.jacobian.transpose() * linearization.jacobian;
   CHECK(linearization.hessian_lower.triangularView<Eigen::Lower>().isApprox(
@@ -359,12 +354,153 @@ TEST_CASE("Test nontrivial (frozen, out-of-order) keys", "[optimizer]") {
  */
 TEST_CASE("Check that we can change linear solvers", "[optimizer]") {
   sym::Optimizerd optimizer1(
-      DefaultLmParams(), {sym::Factord()}, 1e-10, "sym::Optimizer", {'a'}, false, false, false,
+      DefaultLmParams(), {sym::Factord()}, "sym::Optimizer", {'a'}, sym::kDefaultEpsilond,
       sym::SparseCholeskySolver<Eigen::SparseMatrix<double>>(
           Eigen::MetisOrdering<Eigen::SparseMatrix<double>::StorageIndex>()));
 
   sym::Optimizerd optimizer2(
-      DefaultLmParams(), {sym::Factord()}, 1e-10, "sym::Optimizer", {'a'}, false, false, false,
+      DefaultLmParams(), {sym::Factord()}, "sym::Optimizer", {'a'}, sym::kDefaultEpsilond,
       sym::SparseCholeskySolver<Eigen::SparseMatrix<double>>(
           Eigen::NaturalOrdering<Eigen::SparseMatrix<double>::StorageIndex>()));
+}
+
+TEST_CASE("Test optimization statuses", "[optimizer]") {
+  {
+    auto params = sym::DefaultOptimizerParams();
+    params.verbose = true;
+
+    sym::Valuesd values{};
+    values.Set('x', 10.0);
+
+    const auto stats =
+        sym::Optimize(params,
+                      {sym::Factord::Jacobian(
+                          [](const double x, sym::Vector1d* const res, sym::Matrix11d* const jac) {
+                            *res << std::pow(x, 9);
+                            *jac << 9 * std::pow(x, 8);
+                          },
+                          {'x'})},
+                      values);
+
+    CHECK(stats.status == sym::optimization_status_t::SUCCESS);
+    CHECK(stats.failure_reason == sym::levenberg_marquardt_solver_failure_reason_t::INVALID);
+  }
+
+  {
+    auto params = sym::DefaultOptimizerParams();
+    params.iterations = 5;
+
+    sym::Valuesd values{};
+    values.Set('x', 10.0);
+
+    const auto stats =
+        sym::Optimize(params,
+                      {sym::Factord::Jacobian(
+                          [](const double x, sym::Vector1d* const res, sym::Matrix11d* const jac) {
+                            *res << std::pow(x, 9);
+                            *jac << 9 * std::pow(x, 8);
+                          },
+                          {'x'})},
+                      values);
+
+    CHECK(stats.status == sym::optimization_status_t::HIT_ITERATION_LIMIT);
+    CHECK(stats.failure_reason == sym::levenberg_marquardt_solver_failure_reason_t::INVALID);
+  }
+
+  {
+    const auto params = sym::DefaultOptimizerParams();
+
+    sym::Valuesd values{};
+    values.Set('x', 10.0);
+
+    const auto stats =
+        sym::Optimize(params,
+                      {sym::Factord::Jacobian(
+                          [](const double x, sym::Vector1d* const res, sym::Matrix11d* const jac) {
+                            *res << std::sqrt(std::abs(x));
+                            *jac << 1 / (2 * std::sqrt(std::abs(x)));
+                          },
+                          {'x'})},
+                      values);
+
+    CHECK(stats.status == sym::optimization_status_t::FAILED);
+    CHECK(stats.failure_reason ==
+          sym::levenberg_marquardt_solver_failure_reason_t::LAMBDA_OUT_OF_BOUNDS);
+  }
+}
+
+TEST_CASE("Test optimizing with symbolic zeros on the diagonal", "[optimizer]") {
+  // Issue #380
+
+  auto params = sym::DefaultOptimizerParams();
+
+  sym::Valuesd values{};
+  values.Set('x', Eigen::Vector3d::Zero());
+
+  const auto stats =
+      sym::Optimize(params,
+                    {sym::Factord::Hessian(
+                        [](const Eigen::Vector3d& x, Eigen::VectorXd* const res,
+                           Eigen::SparseMatrix<double>* const jac,
+                           Eigen::SparseMatrix<double>* const hess, Eigen::VectorXd* const rhs) {
+                          *res = sym::Vector1d(x(0) - 3);
+
+                          Eigen::SparseMatrix<double> hessian(3, 3);
+                          const std::vector<Eigen::Triplet<double>> triplets = {{0, 0, 1.0}};
+                          hessian.setFromTriplets(triplets.begin(), triplets.end());
+                          *hess = hessian;
+                          *rhs = Eigen::Vector3d(x(0) - 3, 0, 0);
+                        },
+                        {'x'})},
+                    values);
+
+  CHECK(stats.status == sym::optimization_status_t::SUCCESS);
+  CHECK(values.At<Eigen::Vector3d>('x').isApprox(Eigen::Vector3d(3, 0, 0), 1e-6));
+}
+
+TEST_CASE("Test dynamic lambda update", "[optimizer]") {
+  {
+    auto params = sym::DefaultOptimizerParams();
+    params.lambda_update_type = sym::lambda_update_type_t::DYNAMIC;
+    params.verbose = true;
+
+    auto [factors, values] = CreatePoseSmoothingProblem();
+
+    const auto stats = sym::Optimize(params, std::move(factors), values);
+
+    CHECK(stats.status == sym::optimization_status_t::SUCCESS);
+    CHECK(stats.failure_reason == sym::levenberg_marquardt_solver_failure_reason_t::INVALID);
+    CHECK(stats.iterations.size() == 27);
+  }
+}
+
+TEST_CASE("The best linearization can be filled out without debug_stats", "[optimizer]") {
+  auto params = sym::DefaultOptimizerParams();
+  params.lambda_update_type = sym::lambda_update_type_t::DYNAMIC;
+  CHECK(params.debug_stats == false);
+
+  auto [factors, values] = CreatePoseSmoothingProblem();
+
+  auto optimizer = sym::Optimizer(params, std::move(factors));
+  const auto stats =
+      optimizer.Optimize(values, /* num_iterations */ -1, /* populate_best_linearization */ true);
+
+  CHECK(stats.status == sym::optimization_status_t::SUCCESS);
+  CHECK(stats.failure_reason == sym::levenberg_marquardt_solver_failure_reason_t::INVALID);
+  CHECK(stats.iterations.size() == 27);
+  CHECK(stats.best_linearization.has_value());
+  CHECK(stats.best_linearization->residual.size() == 66);
+  CHECK(stats.best_linearization->residual.array().isFinite().all());
+  CHECK(stats.best_linearization->jacobian.rows() == 0);
+  CHECK(stats.best_linearization->jacobian.cols() == 0);
+  CHECK(stats.best_linearization->hessian_lower.rows() == 60);
+  CHECK(stats.best_linearization->hessian_lower.cols() == 60);
+  CHECK(stats.best_linearization->hessian_lower.nonZeros() == 534);
+  CHECK(Eigen::Map<const Eigen::VectorXd>(stats.best_linearization->hessian_lower.valuePtr(),
+                                          stats.best_linearization->hessian_lower.nonZeros())
+            .array()
+            .isFinite()
+            .all());
+  CHECK(stats.best_linearization->rhs.size() == 60);
+  CHECK(stats.best_linearization->rhs.array().isFinite().all());
 }

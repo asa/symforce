@@ -20,11 +20,11 @@ def generate_values_keys(
     config: CppConfig,
     namespace: str = "sym",
     generated_file_name: str = "keys.h",
-    excluded_keys: T.Set[generated_key_selection.GeneratedKey] = None,
+    excluded_keys: T.Optional[T.Set[generated_key_selection.GeneratedKey]] = None,
     skip_directory_nesting: bool = False,
 ) -> None:
     """
-    Generate C++ variables to easily create `sym::Key`s from the python key names
+    Generate C++ variables to easily create ``sym::Key``s from the python key names
 
     Args:
         values: Will generate an entry for each (recursive) key in the values

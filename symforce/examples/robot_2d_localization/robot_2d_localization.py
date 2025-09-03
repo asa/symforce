@@ -114,8 +114,12 @@ def main() -> None:
     optimizer = Optimizer(
         factors=factors,
         optimized_keys=optimized_keys,
-        debug_stats=True,  # Return problem stats for every iteration
-        params=Optimizer.Params(verbose=True),  # Customize optimizer behavior
+        params=Optimizer.Params(  # Customize optimizer behavior
+            # Print information about each iteration
+            verbose=True,
+            # Return problem stats for every iteration
+            debug_stats=True,
+        ),
     )
 
     # Solve and return the result
@@ -124,6 +128,7 @@ def main() -> None:
     # Print some values
     print(f"Num iterations: {len(result.iterations) - 1}")
     print(f"Final error: {result.error():.6f}")
+    print(f"Status: {result.status}")
 
     for i, pose in enumerate(result.optimized_values["poses"]):
         print(f"Pose {i}: t = {pose.position()}, heading = {pose.rotation().to_tangent()[0]}")
@@ -147,7 +152,9 @@ from symforce.codegen import Codegen
 from symforce.codegen import CppConfig
 
 
-def generate_bearing_residual_code(output_dir: Path = None, print_code: bool = False) -> None:
+def generate_bearing_residual_code(
+    output_dir: T.Optional[Path] = None, print_code: bool = False
+) -> None:
     """
     Generate C++ code for the bearing residual function. A C++ Factor can then be
     constructed and optimized from this function without any Python dependency.
@@ -178,7 +185,9 @@ def generate_bearing_residual_code(output_dir: Path = None, print_code: bool = F
         shutil.rmtree(metadata.output_dir)
 
 
-def generate_odometry_residual_code(output_dir: Path = None, print_code: bool = False) -> None:
+def generate_odometry_residual_code(
+    output_dir: T.Optional[Path] = None, print_code: bool = False
+) -> None:
     """
     Generate C++ code for the odometry residual function. A C++ Factor can then be
     constructed and optimized from this function without any Python dependency.

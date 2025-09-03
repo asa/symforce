@@ -22,12 +22,16 @@ class ResidualBlock:
     residual: sf.Matrix
     extra_values: T.Optional[T.Dataclass] = None
     metadata: T.Optional[T.Dict[str, T.Any]] = None
+    # When creating an `OptimizationProblem`, all residual blocks with the same factor_name will
+    # be split out into a separate factor from the main optimization problem factor.
+    factor_name: T.Optional[str] = None
 
     def compute_jacobians(
         self,
         inputs: T.Sequence[T.Element],
-        residual_name: str = None,
-        key_names: T.Sequence[str] = None,
+        residual_name: T.Optional[str] = None,
+        key_names: T.Optional[T.Sequence[str]] = None,
+        epsilon: T.Scalar = sf.epsilon(),
     ) -> T.Sequence[sf.Matrix]:
         """
         Compute the jacobians of this residual block with respect to a sequence of inputs
@@ -38,11 +42,13 @@ class ResidualBlock:
                            messages
             key_names: Optional sequence of human-readable names for the inputs to be used for debug
                        messages
+            epsilon: Scalar argument that will be used if tangent_D_storage or
+                     storage_D_tangent require epsilon arguements.
 
         Returns:
             Sequence of jacobians of the residual with respect to each entry in inputs
         """
-        return jacobian_helpers.tangent_jacobians(self.residual, inputs)
+        return jacobian_helpers.tangent_jacobians(self.residual, inputs, epsilon=epsilon)
 
     def set_metadata(self, key: str, value: T.Any) -> ResidualBlock:
         """
@@ -54,6 +60,13 @@ class ResidualBlock:
             self.metadata[key] = value
         return self
 
+    def set_factor_name(self, name: T.Optional[str]) -> ResidualBlock:
+        """
+        Sets the factor name of the residual block and returns the residual block.
+        """
+        self.factor_name = name
+        return self
+
 
 @dataclass
 class ResidualBlockWithCustomJacobian(ResidualBlock):
@@ -63,9 +76,9 @@ class ResidualBlockWithCustomJacobian(ResidualBlock):
     This should generally only be used if you want to override the jacobian computed by SymForce,
     e.g. to stop derivatives with respect to certain variables or directions, or because the
     jacobian can be analytically simplified in a way that SymForce won't do automatically.  The
-    custom_jacobians field should then be filled out with a mapping from all inputs to the residual
-    which may be differentiated with respect to, to the desired jacobian of the residual with
-    respect to each of those inputs.
+    ``custom_jacobians`` field should then be filled out with a mapping from all inputs to the
+    residual which may be differentiated with respect to, to the desired jacobian of the residual
+    with respect to each of those inputs.
     """
 
     custom_jacobians: T.Dict[T.Element, sf.Matrix] = field(default_factory=dict)
@@ -73,8 +86,9 @@ class ResidualBlockWithCustomJacobian(ResidualBlock):
     def compute_jacobians(
         self,
         inputs: T.Sequence[T.Element],
-        residual_name: str = None,
-        key_names: T.Sequence[str] = None,
+        residual_name: T.Optional[str] = None,
+        key_names: T.Optional[T.Sequence[str]] = None,
+        epsilon: T.Scalar = sf.epsilon(),
     ) -> T.Sequence[sf.Matrix]:
         """
         Compute the jacobians of this residual block with respect to a sequence of inputs
@@ -85,6 +99,8 @@ class ResidualBlockWithCustomJacobian(ResidualBlock):
                            messages
             key_names: Optional sequence of human-readable names for the inputs to be used for debug
                        messages
+            epsilon: Scalar argument that will be used if tangent_D_storage or
+                     storage_D_tangent require epsilon arguements.
 
         Returns:
             Sequence of jacobians of the residual with respect to each entry in inputs
@@ -99,7 +115,7 @@ class ResidualBlockWithCustomJacobian(ResidualBlock):
                 # compute it.  If it's nonzero, raise an error, since the user probably
                 # wants to provide custom jacobians for all the variables if they
                 # provided one
-                residual_input_jacobian = self.residual.jacobian(input_element)
+                residual_input_jacobian = self.residual.jacobian(input_element, epsilon=epsilon)
                 if (
                     residual_input_jacobian
                     != sf.matrix_type_from_shape(residual_input_jacobian.shape).zero()

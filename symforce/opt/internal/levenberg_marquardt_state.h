@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
+#include <Eigen/Core>
+#include <Eigen/SparseCore>
 
 #include <sym/util/typedefs.h>
 
@@ -17,20 +17,24 @@ namespace sym {
 namespace internal {
 
 /**
- * Class that stores multiple {Values, Linearization} blocks for the LevenbergMarquardtSolver
+ * Base class that stores multiple {Values, Linearization} blocks for the LevenbergMarquardtSolver
  *
- * We have three of these blocks.  For a given iteration, we need the Values and Linearization
+ * We have three of these blocks. For a given iteration, we need the Values and Linearization
  * before and after the update; we also need a third block to store the current best Values.  We
  * support allowing uphill steps, so it's possible that the best Values we've encountered is neither
- * of the blocks we're using for the current iteration.
+ * of the blocks we're using for the current iteration. This class also manages which of the three
+ * underlying blocks are currently in use for which purpose (New, Init, or Best).
  *
- * This class also manages which of the three underlying blocks are currently in use for which
- * purpose (New, Init, or Best).
+ * This base class is templated on (1) a class implementing functions required to update the state
+ * blocks (used via CRTP), (2) the underlying datatype of the state blocks (typically this will be
+ * `Values<Scalar>`, but can be a used-defined type in special cases), and (3) the matrix type of
+ * the linearization (sparse or dense).
  */
-template <typename ScalarType>
-class LevenbergMarquardtState {
+template <class Derived, typename _ValuesType, typename MatrixType>
+class LevenbergMarquardtStateBase {
  public:
-  using Scalar = ScalarType;
+  using Scalar = typename MatrixType::Scalar;
+  using ValuesType = _ValuesType;
 
   /**
    * Single values with linearization.  The full State contains three of these
@@ -47,6 +51,7 @@ class LevenbergMarquardtState {
 
     void ResetLinearization() {
       linearization_.Reset();
+      have_cached_error_ = false;
     }
 
     template <typename LinearizeFunc>
@@ -56,23 +61,26 @@ class LevenbergMarquardtState {
       have_cached_error_ = false;
     }
 
-    const Linearization<Scalar>& GetLinearization() const {
+    Linearization<MatrixType>& GetLinearization() {
       return linearization_;
     }
 
-    Values<Scalar> values{};
+    const Linearization<MatrixType>& GetLinearization() const {
+      return linearization_;
+    }
+
+    ValuesType values{};
 
    private:
-    Linearization<Scalar> linearization_{};
+    Linearization<MatrixType> linearization_{};
     mutable bool have_cached_error_{false};
     mutable double cached_error_{0};
   };
 
   // Reset the state
-  void Reset(const Values<Scalar>& values) {
-    New().values = values;
-    Init().values = {};
-    Free().values = {};
+  void Reset(const ValuesType& values) {
+    static_cast<Derived*>(this)->ResetValues(values);
+
     New().ResetLinearization();
     Init().ResetLinearization();
     Free().ResetLinearization();
@@ -149,7 +157,33 @@ class LevenbergMarquardtState {
     free_idx_ = best_idx_;
   }
 
- private:
+  // Saves the index for the optimized keys. The full index for the values is computed separately
+  // only when `GetLcmType` is called.
+  void SetIndex(const index_t& index) {
+    index_ = index;
+  }
+
+  // ----------------------------------------------------------------------------
+  // Functions requiring implementation by the derived class.
+  // ----------------------------------------------------------------------------
+
+  // Updates New block by applying `update` to Init block
+  void UpdateNewFromInit(const VectorX<Scalar>& update, const Scalar epsilon) {
+    static_cast<Derived*>(this)->UpdateNewFromInitImpl(update, epsilon);
+  }
+
+  // Returns a serializable type for storage in the LM debug message of the given state block.
+  sym::values_t GetLcmType(const StateBlock& state_block) const {
+    return static_cast<const Derived*>(this)->GetLcmTypeImpl(state_block.values);
+  }
+
+ protected:
+  // Optional index of the optimized keys for the associated ValuesType. If ValuesType ==
+  // Values<Scalar>, then this is used in `UpdateNewFromInitImpl` to efficiently retract the values.
+  // If ValuesType is a user-defined type, then this can either be ignored or used for user-defined
+  // purposes.
+  index_t index_{};
+
   StateBlock& Free() {
     return state_blocks_[free_idx_];
   }
@@ -170,6 +204,69 @@ class LevenbergMarquardtState {
 
   // Does the Best block contain values?
   bool best_values_are_valid_{false};
+};
+
+template <typename MatrixType>
+class LevenbergMarquardtState
+    : public LevenbergMarquardtStateBase<LevenbergMarquardtState<MatrixType>,
+                                         Values<typename MatrixType::Scalar>, MatrixType> {
+ public:
+  using Scalar = typename MatrixType::Scalar;
+  using ValuesType = typename LevenbergMarquardtState::ValuesType;
+
+  void UpdateNewFromInitImpl(const VectorX<Scalar>& update, const Scalar epsilon) {
+    SYM_ASSERT_EQ(update.rows(), this->index_.tangent_dim,
+                  "SetIndex() must be called before UpdateNewFromInit() with the correct index");
+    const auto& init_values = this->Init().values;
+    auto& new_values = this->New().values;
+
+    if (new_values.NumEntries() == 0) {
+      // If the state_ blocks are empty the first time, copy in the full structure
+      new_values = init_values;
+      initialized_[this->new_idx_] = true;
+    } else if (!initialized_[this->new_idx_]) {
+      // If the state_ block has the right structure, but invalid data, copy the data
+      SYM_ASSERT_EQ(new_values.Data().size(), init_values.Data().size());
+      std::copy(init_values.Data().begin(), init_values.Data().end(), new_values.DataPointer());
+      initialized_[this->new_idx_] = true;
+    } else {
+      // Otherwise just copy the keys being optimized
+      new_values.Update(this->index_, init_values);
+    }
+
+    // Apply the update
+    new_values.Retract(this->index_, update.data(), epsilon);
+  }
+
+  // Returns the full index (optimized keys + non-optimized keys) + the data of the given values.
+  // On the first call, caches the full index to avoid recomputing it on subsequent calls.
+  sym::values_t GetLcmTypeImpl(const ValuesType& values) const {
+    if (full_index_cached_.entries.size() == 0) {
+      full_index_cached_ = values.CreateIndex(/* sort_by_offset = */ false);
+    }
+    return sym::values_t{full_index_cached_, values.template Cast<double>().Data()};
+  }
+
+  void ResetValues(const ValuesType& values) {
+    if (this->New().values.NumEntries() == 0) {
+      this->New().values = values;
+    } else {
+      auto& new_values = this->New().values;
+      SYM_ASSERT_EQ(new_values.Data().size(), values.Data().size());
+      std::copy(values.Data().begin(), values.Data().end(), new_values.DataPointer());
+    }
+    initialized_[this->new_idx_] = true;
+    initialized_[this->init_idx_] = false;
+    initialized_[this->free_idx_] = false;
+  }
+
+ private:
+  // Index of the Values, including both optimized variables and constants. We assume the structure
+  // of the Values does not change.
+  mutable index_t full_index_cached_{};
+
+  // Whether each block has valid values
+  std::array<bool, 3> initialized_{false, false, false};
 };
 
 }  // namespace internal

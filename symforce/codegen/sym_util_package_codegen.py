@@ -6,14 +6,15 @@
 import tempfile
 from pathlib import Path
 
+import symforce.symbolic as sf
 from symforce import codegen
 from symforce import logger
 from symforce import python_util
-from symforce.codegen import cam_package_codegen
+from symforce import typing as T
 from symforce.codegen import template_util
 
 
-def generate(config: codegen.CodegenConfig, output_dir: Path = None) -> Path:
+def generate(config: codegen.CodegenConfig, output_dir: T.Optional[Path] = None) -> Path:
     """
     Generate the sym util package for the given language.
     """
@@ -43,7 +44,7 @@ def generate(config: codegen.CodegenConfig, output_dir: Path = None) -> Path:
             output_path=package_dir / "type_ops.h",
             data=dict(
                 python_util=python_util,
-                camera_cal_class_names=cam_package_codegen.camera_cal_class_names(),
+                sf=sf,
             ),
             config=config.render_template_config,
             template_dir=template_dir,

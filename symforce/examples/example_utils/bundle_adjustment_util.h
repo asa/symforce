@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 #include <lcmtypes/sym/optimizer_params_t.hpp>
 
@@ -34,10 +34,7 @@ std::vector<Correspondence<Scalar>> GenerateCorrespondences(
     const size_t num_outliers = 0) {
   // Create correspondence for each sample
   std::vector<Correspondence<Scalar>> correspondences;
-  for (const auto& observation : source_observations) {
-    const auto& source_uv = observation.first;
-    const auto& inverse_range = observation.second;
-
+  for (const auto& [source_uv, inverse_range] : source_observations) {
     Correspondence<Scalar> correspondence;
     correspondence.source_uv = source_uv;
 
@@ -122,8 +119,9 @@ std::vector<Scalar> SampleInverseRanges(const size_t num, std::mt19937& gen,
 inline optimizer_params_t OptimizerParams() {
   optimizer_params_t params{};
   params.iterations = 50;
-  params.verbose = false;
+  params.verbose = true;
   params.initial_lambda = 1.0;
+  params.lambda_update_type = sym::lambda_update_type_t::STATIC;
   params.lambda_up_factor = 10.0;
   params.lambda_down_factor = 1 / 10.0;
   params.lambda_lower_bound = 1.0e-8;

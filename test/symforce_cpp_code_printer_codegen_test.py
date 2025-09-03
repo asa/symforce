@@ -16,7 +16,7 @@ from symforce.test_util import TestCase
 from symforce.test_util import sympy_only
 
 TEST_DATA_DIR = (
-    symforce_data_root()
+    symforce_data_root(__file__)
     / "test"
     / "symforce_function_codegen_test_data"
     / symforce.get_symbolic_api()
@@ -34,13 +34,13 @@ class SymforceCppCodePrinterTest(TestCase):
         a = sf.Symbol("a")
         b = sf.Symbol("b")
 
-        expr: sf.Expr = sf.Max(a ** 2, b ** 2)
+        expr: sf.Expr = sf.Max(a**2, b**2)
         self.assertEqual(
             printer.doprint(expr),
             "std::max<Scalar>(std::pow(a, Scalar(2)), std::pow(b, Scalar(2)))",
         )
 
-        expr = sf.Min(a ** 2, b ** 2)
+        expr = sf.Min(a**2, b**2)
         self.assertEqual(
             printer.doprint(expr),
             "std::min<Scalar>(std::pow(a, Scalar(2)), std::pow(b, Scalar(2)))",

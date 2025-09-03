@@ -1,15 +1,14 @@
-# aclint: py2 py3
-# mypy: allow-untyped-defs
-from __future__ import absolute_import
 
-import argparse  # pylint: disable=unused-import
+from __future__ import annotations
+
+import argparse
 import copy
 import os
 import typing as T
 import zipfile
 from io import BytesIO
 
-from skymarshal import syntax_tree  # pylint: disable=unused-import
+from skymarshal import syntax_tree
 from skymarshal.emit_helpers import Code, EnumBuilder, StructBuilder, render
 from skymarshal.language_plugin import SkymarshalLanguage
 
@@ -46,7 +45,7 @@ TYPE_MAP["sfixed64"] = TYPE_MAP["int64_t"]
 TYPE_MAP["ufixed64"] = TYPE_MAP["uint64_t"]
 
 
-def module_name_for_lcmtype_name(lcmtype_name):
+def module_name_for_lcmtype_name(lcmtype_name: str) -> str:
     # NOTE(matt): we add an underscore to the file name to disambiguate between type and module
     # when importing `from lcmtypes.package import name`
     return "_" + lcmtype_name
@@ -55,12 +54,13 @@ def module_name_for_lcmtype_name(lcmtype_name):
 class PythonClass(StructBuilder):
     """Helper to construct a python class definition."""
 
-    def __init__(self, package, struct, args):
-        super(PythonClass, self).__init__(package, struct, args)
-        self.cached_unpackers = dict()  # type: T.Dict[str, T.Tuple[int, str]]
+    def __init__(
+        self, package: syntax_tree.Package, struct: syntax_tree.Struct, args: argparse.Namespace
+    ) -> None:
+        super().__init__(package, struct, args)
+        self.cached_unpackers: T.Dict[str, T.Tuple[int, str]] = dict()
 
-    def get_type_info(self, type_ref):
-        # type: (syntax_tree.TypeRef) -> TypeInfo
+    def get_type_info(self, type_ref: syntax_tree.TypeRef) -> TypeInfo:
         info = TYPE_MAP.get(type_ref.name)
         if not info:
             # Create a default info for this non-primitive type.
@@ -69,7 +69,7 @@ class PythonClass(StructBuilder):
             info = TypeInfo(type_ref.name, constructor, None, None, 0)
         return info
 
-    def get_imports(self):
+    def get_imports(self) -> T.List[T.Tuple[str, str]]:
         imports = set()
         for member in self.members:
             if not member.type_ref.is_primitive_type():
@@ -79,9 +79,9 @@ class PythonClass(StructBuilder):
                 if package == self.package.name and module == self.module_name:
                     continue
                 if self.args.package_prefix:
-                    result = "{}.{}.{}".format(self.args.package_prefix, package, module)
+                    result = f"{self.args.package_prefix}.{package}.{module}"
                 else:
-                    result = "{}.{}".format(package, module)
+                    result = f"{package}.{module}"
                     # The {}.{} form worked for eigen_lcm packages until we removed subpackages from
                     # all the __init__.pys. It's now necessary to be explicit:
                     if package == "eigen_lcm":
@@ -90,14 +90,18 @@ class PythonClass(StructBuilder):
                 imports.add((result, result.split(".")[-1][1:]))
         return sorted(imports)
 
-    def member_initializers(self):
+    def member_initializers(
+        self, optional: bool = False
+    ) -> T.Iterable[T.Tuple[syntax_tree.Member, T.Optional[str], str, str]]:
         for member in self.members:
             kwarg_default = self.member_kwarg_default(member)
             initializer = self.member_initializer(member, 0)
             type_hint = self.type_hint(member)
+            if optional and kwarg_default is None:
+                type_hint = f"T.Optional[{type_hint}]"
             yield member, kwarg_default, initializer, type_hint
 
-    def member_kwarg_default(self, member):
+    def member_kwarg_default(self, member: syntax_tree.Member) -> T.Optional[T.Any]:
         if member.ndim != 0:
             return None
         type_info = TYPE_MAP.get(member.type_ref.name)
@@ -105,7 +109,7 @@ class PythonClass(StructBuilder):
             return type_info.initializer
         return None
 
-    def member_initializer(self, member, depth):
+    def member_initializer(self, member: syntax_tree.Member, depth: int) -> str:
         if depth == member.ndim:
             return self.get_type_info(member.type_ref).initializer
 
@@ -113,19 +117,24 @@ class PythonClass(StructBuilder):
             # Arrays of bytes get treated as strings, so that they can be more
             # efficiently packed and unpacked.
             return 'b""'
+
+        assert hasattr(member, "dims")
         dim = member.dims[depth]
         if dim.dynamic:
             return "[]"
         inner = self.member_initializer(member, depth + 1)
-        return "[ {} for dim{} in range({}) ]".format(inner, depth, dim.size_str)
+        return f"[ {inner} for dim{depth} in range({dim.size_str}) ]"
 
-    def type_hint(self, member, depth=0):
-        # type: (syntax_tree.Member, int) -> str
+    def type_hint(self, member: syntax_tree.Member, depth: int = 0) -> str:
         """
         Returns a mypy type hint for the provided member
         """
         if depth == member.ndim:
-            return self.get_type_info(member.type_ref).pytype
+            ret = self.get_type_info(member.type_ref).pytype
+            if ret == self.name:
+                # Put quotes around recursive types
+                ret = f"\"{ret}\""
+            return ret
 
         if depth == member.ndim - 1 and member.type_ref.name == "byte":
             return "bytes"
@@ -143,9 +152,11 @@ class PythonClass(StructBuilder):
             # can be either tuples or lists.
             array_type = "T.Sequence"
 
-        return "{}[{}]".format(array_type, self.type_hint(member, depth + 1))
+        return f"{array_type}[{self.type_hint(member, depth + 1)}]"
 
-    def encode_member(self, code, member, accessor, indent):
+    def encode_member(
+        self, code: Code, member: syntax_tree.Member, accessor: str, indent: int
+    ) -> None:
         if member.type_ref.is_non_string_primitive_type():
             info = self.get_type_info(member.type_ref)
             assert info.pack_format is not None
@@ -169,7 +180,15 @@ class PythonClass(StructBuilder):
             code(indent + 1, "assert %s.%s([]) == %s.%s([])", accessor, ghr, name, ghr)
             code(indent, "%s._encode_one(buf)", accessor)
 
-    def decode_list(self, code, member, accessor, indent, dim, is_first):
+    def decode_list(
+        self,
+        code: Code,
+        member: syntax_tree.Member,
+        accessor: str,
+        indent: int,
+        dim: syntax_tree.ArrayDim,
+        is_first: bool,
+    ) -> None:
         suffix = ""
         if not is_first:
             suffix = ")"
@@ -178,13 +197,13 @@ class PythonClass(StructBuilder):
 
         if member.type_ref.name == "byte":
             if not dim.dynamic:
-                length = dim.size_str
+                length_str = dim.size_str
             elif dim.auto_member:
-                length = "v_{}".format(dim.size_str)
-                self.decode_member(code, dim.auto_member, length + " = ", indent, "")
+                length_str = f"v_{dim.size_str}"
+                self.decode_member(code, dim.auto_member, length_str + " = ", indent, "")
             else:
-                length = "self.{}".format(dim.size_str)
-            code(indent, "%sbuf.read(%s)%s", accessor, length, suffix)
+                length_str = f"self.{dim.size_str}"
+            code(indent, "%sbuf.read(%s)%s", accessor, length_str, suffix)
         elif member.type_ref.name == "boolean":
             if not dim.dynamic:
                 assert dim.size_str is not None
@@ -204,17 +223,17 @@ class PythonClass(StructBuilder):
                 )
             else:
                 if dim.auto_member:
-                    length = "v_{}".format(dim.size_str)
-                    self.decode_member(code, dim.auto_member, length + " = ", indent, "")
+                    length_str = f"v_{dim.size_str}"
+                    self.decode_member(code, dim.auto_member, length_str + " = ", indent, "")
                 else:
-                    length = "self.{}".format(dim.size_str)
+                    length_str = f"self.{dim.size_str}"
                 code(
                     indent,
                     "%slist(map(bool, struct.unpack('>%%d%c' %% %s, buf.read(%s))))%s",
                     accessor,
                     info.struct_format,
-                    length,
-                    length,
+                    length_str,
+                    length_str,
                     suffix,
                 )
         elif member.type_ref.is_numeric_type():
@@ -236,10 +255,10 @@ class PythonClass(StructBuilder):
                 )
             else:
                 if dim.auto_member:
-                    length = "v_{}".format(dim.size_str)
-                    self.decode_member(code, dim.auto_member, length + " = ", indent, "")
+                    length_str = f"v_{dim.size_str}"
+                    self.decode_member(code, dim.auto_member, length_str + " = ", indent, "")
                 else:
-                    length = "self.{}".format(dim.size_str)
+                    length_str = f"self.{dim.size_str}"
                 assert info.size is not None
                 size_mult = (" * %d" % info.size) if info.size > 1 else ""
                 code(
@@ -247,15 +266,15 @@ class PythonClass(StructBuilder):
                     "%sstruct.unpack('>%%d%c' %% %s, buf.read(%s%s))%s",
                     accessor,
                     info.struct_format,
-                    length,
-                    length,
+                    length_str,
+                    length_str,
                     size_mult,
                     suffix,
                 )
         else:
             assert 0
 
-    def pack_members(self, code, members, indent):
+    def pack_members(self, code: Code, members: T.List[syntax_tree.Member], indent: int) -> None:
         """encode multiple members with a single call to struct.pack()."""
         if not members:
             return
@@ -265,16 +284,16 @@ class PythonClass(StructBuilder):
             assert info.struct_format is not None
             format_str += info.struct_format
         packer = self.get_or_create_pack_struct(format_str)
-        code.start(indent, "buf.write({}.pack(".format(packer))
+        code.start(indent, f"buf.write({packer}.pack(")
         code.add(", ".join("self." + member.name for member in members))
         code.end("))")
 
         # Clear the list
         members[:] = []
 
-    def encode_members(self, indent):
+    def encode_members(self, indent: int) -> T.Text:
         if not self.members:
-            return u"    " * indent + u"pass"
+            return "    " * indent + "pass"
 
         # Optimization: group adjacent non-string primitives together.
         # This allows us to encode them with a single call to struct.pack(...)
@@ -296,7 +315,7 @@ class PythonClass(StructBuilder):
 
                 i = 0
                 for dim in member.dims[:-1]:
-                    accessor += "[i{}]".format(i)
+                    accessor += f"[i{i}]"
                     if dim.dynamic:
                         code(indent + i, "for i%d in range(self.%s):", i, dim.size_str)
                     else:
@@ -316,14 +335,22 @@ class PythonClass(StructBuilder):
                         code(indent + i, "for i%d in range(self.%s):", i, last_dim.size_str)
                     else:
                         code(indent + i, "for i%d in range(%s):", i, last_dim.size_str)
-                    accessor += "[i{}]".format(i)
+                    accessor += f"[i{i}]"
                     self.encode_member(code, member, accessor, indent + i + 1)
 
         self.pack_members(code, grouping, indent)
         return code.getvalue().rstrip()
 
-    def encode_list(self, code, member, accessor, indent, dim):
+    def encode_list(
+        self,
+        code: Code,
+        member: syntax_tree.Member,
+        accessor: str,
+        indent: int,
+        dim: syntax_tree.ArrayDim,
+    ) -> None:
         if member.type_ref.name == "byte":
+            assert dim.size_str is not None
             if dim.auto_member:
                 length = "v_" + dim.size_str
                 code(indent, "%s = len(%s)", length, accessor)
@@ -348,6 +375,7 @@ class PythonClass(StructBuilder):
                     dim.size_str,
                 )
             else:
+                assert dim.size_str is not None
                 if dim.auto_member:
                     length = "v_" + dim.size_str
                     code(indent, "%s = len(%s)", length, accessor)
@@ -365,7 +393,9 @@ class PythonClass(StructBuilder):
         else:
             assert 0
 
-    def decode_member(self, code, member, accessor, indent, suffix):
+    def decode_member(
+        self, code: Code, member: syntax_tree.Member, accessor: str, indent: int, suffix: T.Text
+    ) -> None:
         if member.type_ref.name == "boolean":
             unpacker = self.get_or_create_pack_struct("b")
             code(indent, "%sbool(%s.unpack(buf.read(1))[0])%s", accessor, unpacker, suffix)
@@ -396,7 +426,7 @@ class PythonClass(StructBuilder):
             name = member.type_ref.name
             code(indent, "%s%s._decode_one(buf)%s", accessor, name, suffix)
 
-    def unpack_members(self, code, members, indent):
+    def unpack_members(self, code: Code, members: T.List[syntax_tree.Member], indent: int) -> None:
         """decode multiple members with a single call to struct.unpack()."""
         if not members:
             return
@@ -415,13 +445,13 @@ class PythonClass(StructBuilder):
         code.start(indent, "")
         lhs = ", ".join("self." + member.name for member in members)
         code.add(lhs)
-        code.add(" = {}.unpack(".format(unpacker))
+        code.add(f" = {unpacker}.unpack(")
         code.end("buf.read(%d))%s", size, suffix)
 
         # Clear the list
         members[:] = []
 
-    def decode_members(self, indent):
+    def decode_members(self, indent: int) -> T.Text:
         # pylint: disable=too-many-statements, too-many-branches
         code = Code()
 
@@ -460,7 +490,7 @@ class PythonClass(StructBuilder):
                         code(indent + i, "for i%d in range(%s):", i, dim.size_str)
 
                     if 0 < i < member.ndim - 1:
-                        accessor += "[i{}]".format(i - 1)
+                        accessor += f"[i{i - 1}]"
                     i += 1
 
                 # last dimension
@@ -492,7 +522,7 @@ class PythonClass(StructBuilder):
                         code(indent, "%s = []", accessor)
                     else:
                         code(indent + i, "%s.append ([])", accessor)
-                        accessor += "[i{}]".format(i - 1)
+                        accessor += f"[i{i - 1}]"
 
                     if last_dim.auto_member:
                         code(indent + i, "for i%d in range(v_%s):", i, last_dim.size_str)
@@ -508,34 +538,33 @@ class PythonClass(StructBuilder):
         return code.getvalue().rstrip()
 
     @property
-    def module_name(self):
+    def module_name(self) -> str:
         return "_" + self.name
 
     @property
-    def filename(self):
+    def filename(self) -> str:
         return os.path.join(self.package.name, self.module_name) + ".py"
 
     @property
-    def fullpath(self):
+    def fullpath(self) -> str:
         if self.args.python_path:
             return os.path.join(self.args.python_path or "", self.filename)
         else:
             return self.filename
 
     @property
-    def fully_qualified_name(self):
+    def fully_qualified_name(self) -> str:
         return self.struct.type_ref.name
 
-    def has_complex_members(self):
+    def has_complex_members(self) -> bool:
         return bool(list(self.complex_members()))
 
-    def complex_members(self):
+    def complex_members(self) -> T.Iterator[T.Tuple[str, str]]:
         for member in self.members:
             if not member.type_ref.is_primitive_type():
                 yield member.type_ref.name, member.name
 
-    def get_or_create_pack_struct(self, format_str):
-        # type: (str) -> str
+    def get_or_create_pack_struct(self, format_str: str) -> str:
         """
         Get a string referring to a class variable capturing a struct.Struct instance for the format_str.
 
@@ -547,46 +576,45 @@ class PythonClass(StructBuilder):
         if format_str not in self.cached_unpackers:
             self.cached_unpackers[format_str] = (
                 len(self.cached_unpackers),
-                'struct.Struct("{}")'.format(format_str),
+                f'struct.Struct("{format_str}")',
             )
 
         index, _ = self.cached_unpackers[format_str]
-        return "{}._CACHED_STRUCT_{}".format(self.name, index)
+        return f"{self.name}._CACHED_STRUCT_{index}"
 
-    def cached_structs_block(self, indent):
-        # type: (int) -> T.Text
+    def cached_structs_block(self, indent: int) -> T.Text:
         """Return a code block to define the struct.Struct instances as class members."""
         code = Code()
         for index, struct_str in sorted(self.cached_unpackers.values()):
-            code(indent, "_CACHED_STRUCT_{} = {}".format(index, struct_str))
+            code(indent, f"_CACHED_STRUCT_{index} = {struct_str}")
 
         return code.getvalue().rstrip()
 
     @property
-    def hashable(self):
+    def hashable(self) -> bool:
         return any(notation.name == "#hashable" for notation in self.struct.notations)
 
 
 class PyEnum(EnumBuilder):
-    # TODO: Add unpacker support for enums, which should be pretty easy.
-    def decode_value(self):
+    # TODO(nikhilm): Add unpacker support for enums, which should be pretty easy.
+    def decode_value(self) -> str:
         info = TYPE_MAP[self.storage_type.name]
-        return "struct.unpack('{}', buf.read({}))[0]".format(info.pack_format, info.size)
+        return f"struct.unpack('{info.pack_format}', buf.read({info.size}))[0]"
 
-    def encode_value(self):
+    def encode_value(self) -> str:
         info = TYPE_MAP[self.storage_type.name]
-        return "buf.write(struct.pack('{}', self.value))".format(info.pack_format)
+        return f"buf.write(struct.pack('{info.pack_format}', self.value))"
 
     @property
-    def module_name(self):
+    def module_name(self) -> str:
         return "_" + self.name
 
     @property
-    def filename(self):
+    def filename(self) -> str:
         return os.path.join(self.package.name, self.module_name) + ".py"
 
     @property
-    def fullpath(self):
+    def fullpath(self) -> str:
         if self.args.python_path:
             return os.path.join(self.args.python_path or "", self.filename)
         else:
@@ -595,8 +623,7 @@ class PyEnum(EnumBuilder):
 
 class SkymarshalPython(SkymarshalLanguage):
     @classmethod
-    def add_args(cls, parser):
-        # type: (argparse.ArgumentParser) -> None
+    def add_args(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("--python", action="store_true", help="generate bindings for python")
         parser.add_argument(
             "--python-package-prefix", default=None, help="override package-prefix for python only"
@@ -623,15 +650,14 @@ class SkymarshalPython(SkymarshalLanguage):
     @classmethod
     def create_module(
         cls,
-        package,  # type: syntax_tree.Package
-        args,  # type: argparse.Namespace
-        file_map,  # type: T.Dict[str, T.Union[str, bytes]]
-    ):
-        # type: (...) -> T.List[T.Tuple[str, str]]
+        package: syntax_tree.Package,
+        args: argparse.Namespace,
+        file_map: T.Dict[str, T.Union[str, bytes]],
+    ) -> T.List[T.Tuple[str, str]]:
         module_items = []
 
         for struct in package.struct_definitions:
-            pyclass = PythonClass(package, struct, args)  # type: T.Union[PythonClass, PyEnum]
+            pyclass: T.Union[PythonClass, PyEnum] = PythonClass(package, struct, args)
             file_map[pyclass.fullpath] = render(
                 "python_struct_default_wrapper.py.template",
                 lcmtype=pyclass,
@@ -650,10 +676,9 @@ class SkymarshalPython(SkymarshalLanguage):
     @classmethod
     def create_files(
         cls,
-        packages,  # type: T.Iterable[syntax_tree.Package]
-        args,  # type: argparse.Namespace
-    ):
-        # type: (...) -> T.Dict[str, T.Union[str, bytes]]
+        packages: T.Iterable[syntax_tree.Package],
+        args: argparse.Namespace,
+    ) -> T.Dict[str, T.Union[str, bytes]]:
         """Turn a list of lcm packages into python bindings for each struct.
 
         @param packages: the list of syntax_tree.Package objects
@@ -668,7 +693,7 @@ class SkymarshalPython(SkymarshalLanguage):
             args = copy.copy(args)
             args.package_prefix = args.python_package_prefix
 
-        file_map = {}  # type: T.Dict[str, T.Union[str, bytes]]
+        file_map: T.Dict[str, T.Union[str, bytes]] = {}
         for package in packages:
             # Create a list of (module_name, lcmtype_name) pairs.
             module_items = cls.create_module(package, args, file_map)

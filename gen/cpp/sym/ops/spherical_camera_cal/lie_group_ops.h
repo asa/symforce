@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
-#include "../lie_group_ops.h"
+#include <sym/ops/lie_group_ops.h>
 
 // Forward declare class, without including header
 // Note(brad): We can't include the class header here because the class header
@@ -32,7 +32,7 @@ struct LieGroupOps<SphericalCameraCal<Scalar>>
   using T = SphericalCameraCal<Scalar>;
 
   static constexpr int32_t TangentDim() {
-    return 9;
+    return 11;
   }
 
   using TangentVec = Eigen::Matrix<Scalar, TangentDim(), 1>;

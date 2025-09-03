@@ -46,16 +46,15 @@ class GncOptimizer : public BaseOptimizerType {
    * each time the convexity changes.
    */
   using BaseOptimizerType::Optimize;
-  virtual void Optimize(Values<Scalar>& values, int num_iterations,
-                        bool populate_best_linearization,
-                        OptimizationStats<Scalar>& stats) override {
+  void Optimize(Values<Scalar>& values, int num_iterations, bool populate_best_linearization,
+                typename BaseOptimizer::Stats& stats) override {
     SYM_TIME_SCOPE("GNC<{}>::Optimize", BaseOptimizer::GetName());
 
     if (num_iterations < 0) {
       num_iterations = this->nonlinear_solver_.Params().iterations;
     }
 
-    bool updating_gnc = (gnc_params_.mu_initial < gnc_params_.mu_max);
+    bool updating_gnc = (gnc_params_.mu_initial < gnc_params_.mu_max && gnc_params_.mu_step > 0.0);
 
     // Initialize the value of mu
     values.template Set<Scalar>(gnc_mu_key_, gnc_params_.mu_initial);
@@ -71,19 +70,31 @@ class GncOptimizer : public BaseOptimizerType {
     }
     this->UpdateParams(optimizer_params);
 
+    BaseOptimizer::Initialize(values);
+
+    // Clear state for this run
+    this->nonlinear_solver_.Reset(values);
+    stats.Reset(num_iterations);
+
     // Iterate.
-    BaseOptimizer::Optimize(values, num_iterations, populate_best_linearization, stats);
+    IterateToConvergence(values, num_iterations, populate_best_linearization, stats);
     while (static_cast<int>(stats.iterations.size()) < num_iterations) {
-      // NOTE(aaron): We shouldn't be here unless the optimization early exited (i.e. we had
-      // iterations left)
-      SYM_ASSERT(stats.early_exited);
+      if (stats.status != optimization_status_t::SUCCESS) {
+        // NOTE(aaron): The previous optimization did not converge, so do not continue
+        BaseOptimizer::MaybeLogStatus(stats);
+        return;
+      }
 
       if (!updating_gnc) {
+        BaseOptimizer::MaybeLogStatus(stats);
         return;
       }
 
       // Update the GNC parameter.
-      values.Set(gnc_mu_key_, values.template At<Scalar>(mu_index) + gnc_params_.mu_step);
+      values.template Set<Scalar>(gnc_mu_key_,
+                                  values.template At<Scalar>(mu_index) + gnc_params_.mu_step);
+      // Relax damping params after each GNC update.
+      this->nonlinear_solver_.RelaxDampingToInitial();
 
       // Check if we hit the non-convexity threshold.
       if (values.template At<Scalar>(mu_index) >= gnc_params_.mu_max) {
@@ -102,23 +113,28 @@ class GncOptimizer : public BaseOptimizerType {
       OptimizeContinue(values, num_iterations - stats.iterations.size(),
                        populate_best_linearization, stats);
     }
-  }
-  [[deprecated("Pass values and stats by reference instead")]] virtual void Optimize(
-      Values<Scalar>* const values, int num_iterations, bool populate_best_linearization,
-      OptimizationStats<Scalar>* const stats) override {
-    Optimize(*values, num_iterations, populate_best_linearization, *stats);
+
+    BaseOptimizer::MaybeLogStatus(stats);
   }
 
  private:
   void OptimizeContinue(Values<Scalar>& values, const int num_iterations,
-                        const bool populate_best_linearization, OptimizationStats<Scalar>& stats) {
+                        const bool populate_best_linearization,
+                        typename BaseOptimizer::Stats& stats) {
     SYM_ASSERT(num_iterations >= 0);
     SYM_ASSERT(this->IsInitialized());
 
     // Reset values, but do not clear other state
     this->nonlinear_solver_.ResetState(values);
 
-    this->IterateToConvergence(values, num_iterations, populate_best_linearization, stats);
+    IterateToConvergence(values, num_iterations, populate_best_linearization, stats);
+  }
+
+  void IterateToConvergence(Values<Scalar>& values, const int num_iterations,
+                            const bool populate_best_linearization,
+                            typename BaseOptimizer::Stats& stats) {
+    IterateToConvergenceImpl(values, this->nonlinear_solver_, this->linearize_func_, num_iterations,
+                             populate_best_linearization, this->name_, stats);
   }
 
   optimizer_gnc_params_t gnc_params_;

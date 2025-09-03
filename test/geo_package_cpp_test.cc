@@ -20,8 +20,6 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <fmt/ostream.h>
-#include <spdlog/spdlog.h>
 
 #include <sym/pose2.h>
 #include <sym/pose3.h>
@@ -113,36 +111,37 @@ TEST_CASE("Test Rot2 and Pose2", "[geo_package]") {
 
   // Cast
   const sym::Rot2d rotd = rot.Cast<double>();
-  CHECK(rotd.IsApprox(rot.Cast<double>(), 1e-6));
-  CHECK(rotd.Cast<float>().IsApprox(rot, 1e-6));
+  CHECK(rotd.IsApprox(rot.Cast<double>(), sym::kDefaultEpsilon<float>));
+  CHECK(rotd.Cast<float>().IsApprox(rot, sym::kDefaultEpsilon<float>));
 
   // Make a pose
   const sym::Pose2f pose(rot, pos);
-  CHECK(pose.Rotation().IsApprox(rot, 1e-6));
+  CHECK(pose.Rotation().IsApprox(rot, sym::kDefaultEpsilon<float>));
   CHECK(pose.Position() == pos);
 
   const sym::Pose2f pose_inv = pose.Inverse();
-  CHECK(pose_inv.Rotation().IsApprox(rot.Inverse(), 1e-9));
+  CHECK(pose_inv.Rotation().IsApprox(rot.Inverse(), sym::kDefaultEpsilon<float>));
 
   // Test InverseCompose
   const Eigen::Vector2f point = sym::Random<Eigen::Vector2f>(gen);
-  CHECK(pose.InverseCompose(point).isApprox(pose.Inverse() * point, 1e-6));
+  CHECK(pose.InverseCompose(point).isApprox(pose.Inverse() * point, sym::kDefaultEpsilon<float>));
 
   // Test FromAngle and angle constructor
   const float angle = rot.ToTangent()(0);
-  CHECK(rot.IsApprox(sym::Rot2f(angle), 1e-6));
-  CHECK(rot.IsApprox(sym::Rot2f::FromAngle(angle), 1e-6));
+  CHECK(rot.IsApprox(sym::Rot2f(angle), sym::kDefaultEpsilon<float>));
+  CHECK(rot.IsApprox(sym::Rot2f::FromAngle(angle), sym::kDefaultEpsilon<float>));
 }
 
 TEMPLATE_TEST_CASE("Test Storage ops", "[geo_package]", sym::Rot2<double>, sym::Rot2<float>,
-                   sym::Pose2<double>, sym::Pose2<float>, sym::Rot3<double>, sym::Rot3<float>,
+                   sym::Rot3<double>, sym::Rot3<float>, sym::Pose2<double>, sym::Pose2<float>,
                    sym::Pose3<double>, sym::Pose3<float>, sym::Unit3<double>, sym::Unit3<float>) {
   using T = TestType;
 
   using Scalar = typename sym::StorageOps<T>::Scalar;
 
-  const T value{};
-  spdlog::debug("*** Testing StorageOps: {} ***", value);
+  std::mt19937 gen(24362);
+  const T value = sym::Random<T>(gen);
+  INFO("Testing StorageOps: " << value);
 
   constexpr int32_t storage_dim = sym::StorageOps<T>::StorageDim();
   CHECK(value.Data().rows() == storage_dim);
@@ -171,7 +170,7 @@ TEMPLATE_TEST_CASE("Test Scalar storage ops", "[geo_package]", double, float) {
   using Scalar = typename sym::StorageOps<T>::Scalar;
 
   const T value{};
-  spdlog::debug("*** Testing StorageOps: {} ***", value);
+  INFO("Testing StorageOps: " << value);
 
   constexpr int32_t storage_dim = sym::StorageOps<T>::StorageDim();
   CHECK(storage_dim == 1);
@@ -201,7 +200,7 @@ TEMPLATE_TEST_CASE("Test Matrix storage ops", "[geo_package]", sym::Vector1<doub
   using Scalar = typename sym::StorageOps<T>::Scalar;
 
   const T value = T::Zero();
-  spdlog::debug("*** Testing Matrix StorageOps: {} ***", value.transpose());
+  INFO("Testing Matrix StorageOps: " << value.transpose());
 
   constexpr int32_t storage_dim = sym::StorageOps<T>::StorageDim();
   CHECK(storage_dim == T::RowsAtCompileTime);
@@ -233,26 +232,29 @@ TEST_CASE("Test Matrix storage order is consistent with symbolic storage order")
 }
 
 TEMPLATE_TEST_CASE("Test Group ops", "[geo_package]", sym::Rot2<double>, sym::Rot2<float>,
-                   sym::Pose2<double>, sym::Pose2<float>, sym::Rot3<double>, sym::Rot3<float>,
-                   sym::Pose3<double>, sym::Pose3<float>, sym::Unit3<double>, sym::Unit3<float>) {
+                   sym::Rot3<double>, sym::Rot3<float>, sym::Pose2<double>, sym::Pose2<float>,
+                   sym::Pose3<double>, sym::Pose3<float>) {
   using T = TestType;
+  using Scalar = typename sym::StorageOps<T>::Scalar;
 
   const T identity{};
-  spdlog::debug("*** Testing GroupOps: {} ***", identity);
+  INFO("Testing GroupOps: " << identity);
 
   // TODO(hayk): Make sym::StorageOps<T>::IsApprox that uses ToStorage to compare, then
   // get rid of the custom scalar version below.
-  CHECK(identity.IsApprox(sym::GroupOps<T>::Identity(), 1e-9));
-  CHECK(identity.IsApprox(sym::GroupOps<T>::Compose(identity, identity), 1e-9));
-  CHECK(identity.IsApprox(sym::GroupOps<T>::Inverse(identity), 1e-9));
-  CHECK(identity.IsApprox(sym::GroupOps<T>::Between(identity, identity), 1e-9));
+  CHECK(identity.IsApprox(sym::GroupOps<T>::Identity(), sym::kDefaultEpsilon<Scalar>));
+  CHECK(identity.IsApprox(sym::GroupOps<T>::Compose(identity, identity),
+                          sym::kDefaultEpsilon<Scalar>));
+  CHECK(identity.IsApprox(sym::GroupOps<T>::Inverse(identity), sym::kDefaultEpsilon<Scalar>));
+  CHECK(identity.IsApprox(sym::GroupOps<T>::Between(identity, identity),
+                          sym::kDefaultEpsilon<Scalar>));
 }
 
 TEMPLATE_TEST_CASE("Test Scalar group ops", "[geo_package]", double, float) {
   using T = TestType;
 
   const T identity{};
-  spdlog::debug("*** Testing GroupOps: {} ***", identity);
+  INFO("Testing GroupOps: " << identity);
 
   CHECK(identity == sym::GroupOps<T>::Identity());
   CHECK(identity == sym::GroupOps<T>::Compose(identity, identity));
@@ -270,7 +272,7 @@ TEMPLATE_TEST_CASE("Test Matrix group ops", "[geo_package]", sym::Vector1<double
   using T = TestType;
 
   const T identity = T::Zero();
-  spdlog::debug("*** Testing Matrix GroupOps: {} ***", identity.transpose());
+  INFO("Testing Matrix GroupOps: " << identity.transpose());
 
   CHECK(identity == sym::GroupOps<T>::Identity());
   CHECK(identity == sym::GroupOps<T>::Compose(identity, identity));
@@ -278,31 +280,31 @@ TEMPLATE_TEST_CASE("Test Matrix group ops", "[geo_package]", sym::Vector1<double
   CHECK(identity == sym::GroupOps<T>::Between(identity, identity));
 }
 
-// Returns a random lie group element e which is not near the identity, where
-// the statement that "e is not near the identity" means the length of e's
-// tangent vector is greater than tol.
+// Returns a random element e which is not near the provided element v.
+// "Not near" means the tangent length of v to e, vector is greater than tol.
 // epsilon is to avoid singularies when checking the tangent vector.
 // An example type for Generator is std::mt19937
 template <typename T, typename Generator, typename Scalar>
-T RandomNonIdentity(Generator& gen, Scalar tol) {
-  T element = sym::StorageOps<T>::Random(gen);
+T RandomNotNear(const T& v, Generator& gen, Scalar tol) {
+  T e = sym::StorageOps<T>::Random(gen);
   // Making sure that element is not near identity, and trying again if it is.
-  while (sym::LieGroupOps<T>::ToTangent(element, sym::kDefaultEpsilon<Scalar>).norm() < 2 * tol) {
-    element = sym::StorageOps<T>::Random(gen);
+  while (sym::LieGroupOps<T>::LocalCoordinates(v, e, sym::kDefaultEpsilon<Scalar>).norm() <
+         2 * tol) {
+    e = sym::StorageOps<T>::Random(gen);
   }
-  return element;
+  return e;
 }
 
-// Tests that sym::LieGroupOps<T>::IsClose returns false when applied to group
-// elements that are not close. Meant to be a generic implementation called by
-// TestIsClose<T>::Test
+// Tests that sym::LieGroupOps<T>::IsClose returns true when small tangent perturbations are
+// applied.
 template <typename T, typename Generator, typename Scalar>
 void IsCloseCommonTest(Generator& gen, Scalar tol) {
   // Repeat code 100 times to get a better sampling
   for (int i = 0; i < 100; i++) {
     const T element = sym::StorageOps<T>::Random(gen);
-    // Test that far elements are not close
-    const T different_element = sym::GroupOps<T>::Compose(element, RandomNonIdentity<T>(gen, tol));
+
+    // Test the elements far away from each other are not close.
+    const T different_element = RandomNotNear(element, gen, tol);
     CHECK(!sym::LieGroupOps<T>::IsClose(element, different_element, tol));
 
     // Test that close elements are close
@@ -373,7 +375,7 @@ struct TestIsClose<sym::Rot2<Scalar>> {
 
     // Checking that IsClose returns true for angles which are close but on opposite sides
     // of potentially significant angles (ex: pi + epsilon and pi - epsilon), or when the angles
-    // are close to eachother mod 2 pi (ex: 2pi - epsilon and epsilon)
+    // are close to each other mod 2 pi (ex: 2pi - epsilon and epsilon)
     const Scalar epsilon = sym::kDefaultEpsilon<Scalar>;
     for (Scalar angle = -2 * M_PI; angle < 2 * M_PI + 0.1; angle += M_PI_2) {
       CHECK(sym::LieGroupOps<Rot2>::IsClose(Rot2(angle - epsilon), Rot2(angle + epsilon), tol));
@@ -385,9 +387,35 @@ struct TestIsClose<sym::Rot2<Scalar>> {
   }
 };
 
+template <typename Scalar>
+struct TestIsClose<sym::Unit3<Scalar>> {
+  using Unit3 = sym::Unit3<Scalar>;
+  using TangentVec = typename sym::LieGroupOps<Unit3>::TangentVec;
+
+  template <typename Generator>
+  static void Test(Generator& gen, Scalar tol = 10 * sym::kDefaultEpsilon<Scalar>) {
+    IsCloseCommonTest<Unit3>(gen, tol);
+
+    // Test that IsClose returns true for tangent perturbations that are 2pi apart.
+    const Scalar epsilon = sym::kDefaultEpsilon<Scalar>;
+    for (int i = 0; i < 100; i++) {
+      const Unit3 unit = Unit3::Random(gen);
+      // Perturb by 2pi in each tangent space direction.
+      TangentVec perturbation = TangentVec::Zero();
+      perturbation(0) = 2 * M_PI;
+      const Unit3 unit_2pi_x = sym::LieGroupOps<Unit3>::Retract(unit, perturbation, epsilon);
+      CHECK(sym::LieGroupOps<Unit3>::IsClose(unit, unit_2pi_x, tol));
+      perturbation(0) = 0;
+      perturbation(1) = 2 * M_PI;
+      const Unit3 unit_2pi_y = sym::LieGroupOps<Unit3>::Retract(unit, perturbation, epsilon);
+      CHECK(sym::LieGroupOps<Unit3>::IsClose(unit, unit_2pi_y, tol));
+    }
+  }
+};
+
 TEMPLATE_TEST_CASE("Test Lie group ops", "[geo_package]", sym::Rot2<double>, sym::Rot2<float>,
-                   sym::Pose2<double>, sym::Pose2<float>, sym::Rot3<double>, sym::Rot3<float>,
-                   sym::Pose3<double>, sym::Pose3<float>, sym::Unit3<double>, sym::Unit3<float>) {
+                   sym::Rot3<double>, sym::Rot3<float>, sym::Pose2<double>, sym::Pose2<float>,
+                   sym::Pose3<double>, sym::Pose3<float>) {
   using T = TestType;
 
   using Scalar = typename sym::StorageOps<T>::Scalar;
@@ -398,7 +426,7 @@ TEMPLATE_TEST_CASE("Test Lie group ops", "[geo_package]", sym::Rot2<double>, sym
   const Scalar epsilon = sym::kDefaultEpsilon<Scalar>;
 
   const T identity = sym::GroupOps<T>::Identity();
-  spdlog::debug("*** Testing LieGroupOps: {} ***", identity);
+  INFO("Testing LieGroupOps: " << identity);
 
   constexpr int32_t tangent_dim = sym::LieGroupOps<T>::TangentDim();
   CHECK(tangent_dim > 0);
@@ -413,18 +441,19 @@ TEMPLATE_TEST_CASE("Test Lie group ops", "[geo_package]", sym::Rot2<double>, sym
   std::mt19937 gen(24362);
   TestIsClose<T>::Test(gen);
 
-  const TangentVec pertubation = sym::Random<TangentVec>(gen);
-  const T value = sym::LieGroupOps<T>::FromTangent(pertubation, epsilon);
+  const TangentVec perturbation = sym::Random<TangentVec>(gen);
+  const T value = sym::LieGroupOps<T>::FromTangent(perturbation, epsilon);
 
-  const TangentVec recovered_pertubation = sym::LieGroupOps<T>::ToTangent(value, epsilon);
-  CHECK(pertubation.isApprox(recovered_pertubation, std::sqrt(epsilon)));
+  const TangentVec recovered_perturbation = sym::LieGroupOps<T>::ToTangent(value, epsilon);
+  CHECK(perturbation.isApprox(recovered_perturbation, std::sqrt(epsilon)));
 
-  const T recovered_identity = sym::LieGroupOps<T>::Retract(value, -recovered_pertubation, epsilon);
+  const T recovered_identity =
+      sym::LieGroupOps<T>::Retract(value, -recovered_perturbation, epsilon);
   CHECK(recovered_identity.IsApprox(identity, std::sqrt(epsilon)));
 
-  const TangentVec pertubation_zero =
+  const TangentVec perturbation_zero =
       sym::LieGroupOps<T>::LocalCoordinates(identity, recovered_identity, epsilon);
-  CHECK(pertubation_zero.norm() < std::sqrt(epsilon));
+  CHECK(perturbation_zero.norm() < std::sqrt(epsilon));
 
   const T identity_interp = sym::LieGroupOps<T>::Interpolate(identity, value, 0.0f, epsilon);
   CHECK(identity_interp.IsApprox(identity, std::sqrt(epsilon)));
@@ -466,7 +495,7 @@ TEMPLATE_TEST_CASE("Test Lie group ops", "[geo_package]", sym::Rot2<double>, sym
             storage, epsilon, std::sqrt(epsilon));
 
     const Eigen::Matrix<Scalar, tangent_dim, storage_dim> symforce_tangent_D_storage =
-        sym::TangentDStorage(a);
+        sym::TangentDStorage(a, epsilon);
 
     CHECK(
         numerical_tangent_D_storage.isApprox(symforce_tangent_D_storage, 10 * std::sqrt(epsilon)));
@@ -488,6 +517,93 @@ TEMPLATE_TEST_CASE("Test Lie group ops", "[geo_package]", sym::Rot2<double>, sym
   }
 }
 
+// Similar test to Test Lie group ops, but without group specific operations (e.g. Identity,
+// Compose, FromTangent, etc.)
+TEMPLATE_TEST_CASE("Test Manifold ops", "[geo_package]", sym::Rot2<double>, sym::Rot2<float>,
+                   sym::Rot3<double>, sym::Rot3<float>, sym::Pose2<double>, sym::Pose2<float>,
+                   sym::Pose3<double>, sym::Pose3<float>, sym::Unit3<double>, sym::Unit3<float>) {
+  using T = TestType;
+
+  using Scalar = typename sym::StorageOps<T>::Scalar;
+  using TangentVec = Eigen::Matrix<Scalar, sym::LieGroupOps<T>::TangentDim(), 1>;
+  constexpr const int32_t storage_dim = sym::StorageOps<T>::StorageDim();
+  using StorageVec = Eigen::Matrix<Scalar, storage_dim, 1>;
+  const Scalar epsilon = sym::kDefaultEpsilon<Scalar>;
+
+  std::mt19937 gen(24362);
+  TestIsClose<T>::Test(gen);
+  const T a = sym::Random<T>(gen);
+  INFO("Testing LieGroupOps: " << a);
+
+  constexpr int32_t tangent_dim = sym::LieGroupOps<T>::TangentDim();
+  CHECK(tangent_dim > 0);
+  CHECK(tangent_dim <= sym::StorageOps<T>::StorageDim());
+
+  // Checking that std::numeric_limits<Scalar>::epsilon() is sufficiently large to
+  // avoid nan in LocalCoordinates (used for IsClose). At the time of writing, only
+  // Rot3 and Pose3 encounter issues with nan, and that is when we have the identity rotation.
+  const TangentVec a_tangent =
+      sym::LieGroupOps<T>::LocalCoordinates(a, a, std::numeric_limits<Scalar>::epsilon());
+  CHECK(!a_tangent.array().isNaN().any());
+
+  const TangentVec perturbation = sym::Random<TangentVec>(gen);
+  const T b = sym::LieGroupOps<T>::Retract(a, perturbation, epsilon);
+
+  const TangentVec recovered_perturbation = sym::LieGroupOps<T>::LocalCoordinates(a, b, epsilon);
+  CHECK(perturbation.isApprox(recovered_perturbation, std::sqrt(epsilon)));
+
+  const TangentVec reverse_perturbation = sym::LieGroupOps<T>::LocalCoordinates(b, a, epsilon);
+  const T recovered_a = sym::LieGroupOps<T>::Retract(b, reverse_perturbation, epsilon);
+  CHECK(recovered_a.IsApprox(a, std::sqrt(epsilon)));
+
+  const TangentVec perturbation_zero =
+      sym::LieGroupOps<T>::LocalCoordinates(a, recovered_a, epsilon);
+  CHECK(perturbation_zero.norm() < std::sqrt(epsilon));
+
+  const T a_interp = sym::LieGroupOps<T>::Interpolate(a, b, 0.0f, epsilon);
+  CHECK(a_interp.IsApprox(a, std::sqrt(epsilon)));
+
+  const T b_interp = sym::LieGroupOps<T>::Interpolate(a, b, 1.0f, epsilon);
+  CHECK(b_interp.IsApprox(b, std::sqrt(epsilon)));
+
+  // Test perturbing one axis at a time by sqrt(epsilon)
+  // Makes sure special cases of one-axis perturbations are handled correctly, and that distortion
+  // due to epsilon doesn't extend too far away from 0
+  {
+    TangentVec small_perturbation = TangentVec::Zero();
+    for (int i = 0; i < sym::LieGroupOps<T>::TangentDim(); i++) {
+      small_perturbation(i) = std::sqrt(epsilon);
+      const T b = sym::LieGroupOps<T>::Retract(a, small_perturbation, epsilon);
+      const TangentVec recovered_perturbation =
+          sym::LieGroupOps<T>::LocalCoordinates(a, b, epsilon);
+      CHECK((small_perturbation - recovered_perturbation).norm() <= 10 * epsilon);
+      small_perturbation(i) = 0;
+    }
+  }
+
+  // Test tangent_D_storage generated from the symbolic version in SymForce against numerical
+  // derivatives
+  for (size_t i = 0; i < 10000; i++) {
+    const T a = sym::Random<T>(gen);
+
+    StorageVec storage;
+    sym::StorageOps<T>::ToStorage(a, storage.data());
+    const Eigen::Matrix<Scalar, tangent_dim, storage_dim> numerical_tangent_D_storage =
+        sym::NumericalDerivative(
+            [epsilon, &a](const StorageVec& storage_perturbed) {
+              return sym::LieGroupOps<T>::LocalCoordinates(
+                  a, sym::StorageOps<T>::FromStorage(storage_perturbed.data()), epsilon);
+            },
+            storage, epsilon, std::sqrt(epsilon));
+
+    const Eigen::Matrix<Scalar, tangent_dim, storage_dim> symforce_tangent_D_storage =
+        sym::TangentDStorage(a, epsilon);
+
+    CHECK(
+        numerical_tangent_D_storage.isApprox(symforce_tangent_D_storage, 10 * std::sqrt(epsilon)));
+  }
+}
+
 TEMPLATE_TEST_CASE("Test Scalar Lie group ops", "[geo_package]", double, float) {
   using T = TestType;
 
@@ -496,27 +612,28 @@ TEMPLATE_TEST_CASE("Test Scalar Lie group ops", "[geo_package]", double, float) 
   const Scalar epsilon = sym::kDefaultEpsilon<Scalar>;
 
   const T identity = sym::GroupOps<T>::Identity();
-  spdlog::debug("*** Testing LieGroupOps: {} ***", identity);
+  INFO("Testing LieGroupOps: " << identity);
 
   constexpr int32_t tangent_dim = sym::LieGroupOps<T>::TangentDim();
   CHECK(tangent_dim > 0);
   CHECK(tangent_dim <= sym::StorageOps<T>::StorageDim());
 
   std::mt19937 gen(42);
-  const TangentVec pertubation = sym::Random<TangentVec>(gen);
-  const T value = sym::LieGroupOps<T>::FromTangent(pertubation, epsilon);
+  const TangentVec perturbation = sym::Random<TangentVec>(gen);
+  const T value = sym::LieGroupOps<T>::FromTangent(perturbation, epsilon);
 
   TestIsClose<T>::Test(gen);
 
-  const TangentVec recovered_pertubation = sym::LieGroupOps<T>::ToTangent(value, epsilon);
-  CHECK(pertubation.isApprox(recovered_pertubation, std::sqrt(epsilon)));
+  const TangentVec recovered_perturbation = sym::LieGroupOps<T>::ToTangent(value, epsilon);
+  CHECK(perturbation.isApprox(recovered_perturbation, std::sqrt(epsilon)));
 
-  const T recovered_identity = sym::LieGroupOps<T>::Retract(value, -recovered_pertubation, epsilon);
+  const T recovered_identity =
+      sym::LieGroupOps<T>::Retract(value, -recovered_perturbation, epsilon);
   CHECK(fabs(recovered_identity - identity) < std::sqrt(epsilon));
 
-  const TangentVec pertubation_zero =
+  const TangentVec perturbation_zero =
       sym::LieGroupOps<T>::LocalCoordinates(identity, recovered_identity, epsilon);
-  CHECK(pertubation_zero.norm() < std::sqrt(epsilon));
+  CHECK(perturbation_zero.norm() < std::sqrt(epsilon));
 
   const T identity_interp = sym::LieGroupOps<T>::Interpolate(identity, value, 0.0f, epsilon);
   CHECK(fabs(identity_interp - identity) < std::sqrt(epsilon));
@@ -539,27 +656,28 @@ TEMPLATE_TEST_CASE("Test Matrix Lie group ops", "[geo_package]", sym::Vector1<do
   const Scalar epsilon = sym::kDefaultEpsilon<Scalar>;
 
   const T identity = sym::GroupOps<T>::Identity();
-  spdlog::debug("*** Testing Matrix LieGroupOps: {} ***", identity.transpose());
+  INFO("Testing Matrix LieGroupOps: " << identity.transpose());
 
   constexpr int32_t tangent_dim = sym::LieGroupOps<T>::TangentDim();
   CHECK(tangent_dim > 0);
   CHECK(tangent_dim <= sym::StorageOps<T>::StorageDim());
 
   std::mt19937 gen(42);
-  const TangentVec pertubation = sym::Random<TangentVec>(gen);
-  const T value = sym::LieGroupOps<T>::FromTangent(pertubation, epsilon);
+  const TangentVec perturbation = sym::Random<TangentVec>(gen);
+  const T value = sym::LieGroupOps<T>::FromTangent(perturbation, epsilon);
 
   TestIsClose<T>::Test(gen);
 
-  const TangentVec recovered_pertubation = sym::LieGroupOps<T>::ToTangent(value, epsilon);
-  CHECK(pertubation.isApprox(recovered_pertubation, std::sqrt(epsilon)));
+  const TangentVec recovered_perturbation = sym::LieGroupOps<T>::ToTangent(value, epsilon);
+  CHECK(perturbation.isApprox(recovered_perturbation, std::sqrt(epsilon)));
 
-  const T recovered_identity = sym::LieGroupOps<T>::Retract(value, -recovered_pertubation, epsilon);
+  const T recovered_identity =
+      sym::LieGroupOps<T>::Retract(value, -recovered_perturbation, epsilon);
   CHECK(recovered_identity.isApprox(identity, std::sqrt(epsilon)));
 
-  const TangentVec pertubation_zero =
+  const TangentVec perturbation_zero =
       sym::LieGroupOps<T>::LocalCoordinates(identity, recovered_identity, epsilon);
-  CHECK(pertubation_zero.norm() < std::sqrt(epsilon));
+  CHECK(perturbation_zero.norm() < std::sqrt(epsilon));
 
   const T identity_interp = sym::LieGroupOps<T>::Interpolate(identity, value, 0.0f, epsilon);
   CHECK(identity_interp.isApprox(identity, std::sqrt(epsilon)));

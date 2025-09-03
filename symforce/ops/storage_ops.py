@@ -38,7 +38,7 @@ class StorageOps(Ops):
     @staticmethod
     def from_storage(a: T.ElementOrType, elements: T.Sequence[T.Scalar]) -> T.Element:
         """
-        Construct from a flat list representation. Opposite of `.to_storage()`.
+        Construct from a flat list representation. Opposite of :meth:`to_storage`.
         """
         return StorageOps.implementation(get_type(a)).from_storage(a, elements)
 
@@ -50,7 +50,8 @@ class StorageOps(Ops):
         Args:
             a:
             name: String prefix
-            kwargs: Additional arguments to pass to sf.Symbol (like assumptions)
+            kwargs: Additional arguments to pass to :class:`sf.Symbol <symforce.symbolic.Symbol>`
+                (like assumptions)
 
         Returns:
             Storage:
@@ -65,7 +66,7 @@ class StorageOps(Ops):
 
         def evalf_scalar(s: T.Scalar) -> T.Scalar:
             if hasattr(s, "evalf"):
-                return s.evalf()  # type: ignore
+                return s.evalf()
             if scalar_like(s):
                 return s
             raise TypeError
@@ -84,3 +85,21 @@ class StorageOps(Ops):
         return StorageOps.from_storage(
             a, list(sf.simplify(sf.sympy.Matrix(StorageOps.to_storage(a))))
         )
+
+    _use_latex_friendly_symbols = False
+
+    @classmethod
+    def use_latex_friendly_symbols(cls) -> bool:
+        """
+        Should `StorageOps.symbolic` produce symbols names that are LaTeX-friendly, as opposed to
+        plaintext friendly?
+        """
+        return cls._use_latex_friendly_symbols
+
+    @classmethod
+    def set_use_latex_friendly_symbols(cls, value: bool) -> None:
+        """
+        Should `StorageOps.symbolic` produce symbols names that are LaTeX-friendly, as opposed to
+        plaintext friendly?
+        """
+        cls._use_latex_friendly_symbols = value

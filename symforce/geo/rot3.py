@@ -21,11 +21,11 @@ from .quaternion import Quaternion
 
 class Rot3(LieGroup):
     """
-    Group of three-dimensional orthogonal matrices with determinant +1, representing
+    Group of three-dimensional orthogonal matrices with determinant ``+1``, representing
     rotations in 3D space. Backed by a quaternion with (x, y, z, w) storage.
     """
 
-    def __init__(self, q: Quaternion = None) -> None:
+    def __init__(self, q: T.Optional[Quaternion] = None) -> None:
         """
         Construct from a unit quaternion, or identity if none provided.
         """
@@ -82,35 +82,30 @@ class Rot3(LieGroup):
     def from_tangent(cls, v: T.Sequence[T.Scalar], epsilon: T.Scalar = sf.epsilon()) -> Rot3:
         vm = Matrix(v)
         theta_sq = vm.squared_norm()
-        theta = sf.sqrt(theta_sq + epsilon ** 2)
+        theta = sf.sqrt(theta_sq + epsilon**2)
         assert theta != 0, "Trying to divide by zero, provide epsilon!"
         return cls(Quaternion(xyz=sf.sin(theta / 2) / theta * vm, w=sf.cos(theta / 2)))
 
-    def logmap_acos_clamp_max(self, epsilon: T.Scalar = sf.epsilon()) -> T.List[T.Scalar]:
-        """
-        Implementation of logmap that uses epsilon with the Min function to
-        avoid the singularity in the sqrt at w == 1
-
-        Also flips the sign of the quaternion of w is negative, which makes sure
-        that the resulting tangent vector has norm <= pi
-        """
+    def to_tangent(self, epsilon: T.Scalar = sf.epsilon()) -> T.List[T.Scalar]:
+        # Implementation of logmap that uses epsilon with the Min function to
+        # avoid the singularity in the sqrt at w == 1
+        #
+        # Also flips the sign of the quaternion if w is negative, which makes sure
+        # that the resulting tangent vector has norm <= pi
         w_positive = sf.Abs(self.q.w)
         w_safe = sf.Min(1 - epsilon, w_positive)
         xyz_w_positive = self.q.xyz * sf.sign_no_zero(self.q.w)
-        norm = sf.sqrt(1 - w_safe ** 2)
-        tangent = 2 * xyz_w_positive / norm * sf.acos(w_safe)
+        norm = sf.sqrt(1 - w_safe**2)
+        tangent = xyz_w_positive / norm * self.to_tangent_norm(epsilon=epsilon)
         return tangent.to_storage()
-
-    def to_tangent(self, epsilon: T.Scalar = sf.epsilon()) -> T.List[T.Scalar]:
-        return self.logmap_acos_clamp_max(epsilon=epsilon)
 
     @classmethod
     def hat(cls, vec: T.Sequence[T.Scalar]) -> Matrix33:
         return Matrix33([[0, -vec[2], vec[1]], [vec[2], 0, -vec[0]], [-vec[1], vec[0], 0]])
 
-    def storage_D_tangent(self) -> Matrix43:
+    def storage_D_tangent(self, epsilon: T.Scalar = sf.epsilon()) -> Matrix43:
         """
-        Note: generated from symforce/notebooks/storage_D_tangent.ipynb
+        Note: generated from ``symforce/notebooks/storage_D_tangent.ipynb``
         """
         return (
             sf.S.One
@@ -125,11 +120,11 @@ class Rot3(LieGroup):
             )
         )
 
-    def tangent_D_storage(self) -> Matrix34:
+    def tangent_D_storage(self, epsilon: sf.Scalar = sf.epsilon()) -> Matrix34:
         """
-        Note: generated from symforce/notebooks/tangent_D_storage.ipynb
+        Note: generated from ``symforce/notebooks/tangent_D_storage.ipynb``
         """
-        return 4 * T.cast(Matrix34, self.storage_D_tangent().T)
+        return 4 * T.cast(Matrix34, self.storage_D_tangent(epsilon).T)
 
     # -------------------------------------------------------------------------
     # Helper methods
@@ -152,7 +147,20 @@ class Rot3(LieGroup):
         elif isinstance(right, Rot3):
             return self.compose(right)
         else:
-            raise NotImplementedError(f'Unsupported type: "{right}"')
+            raise NotImplementedError(f'Unsupported type: "{type(right)}"')
+
+    def to_tangent_norm(self, epsilon: T.Scalar = sf.epsilon()) -> sf.Scalar:
+        """
+        Returns the norm of the tangent vector corresponding to this rotation
+
+        This is equal to the angle that should be rotated through to get this Rot3, in radians.
+        Using this function directly is usually more efficient than computing the norm of the
+        tangent vector, both in symbolic and generated code; by default, symbolic APIs will not
+        automatically simplify to this
+        """
+        w_positive = sf.Abs(self.q.w)
+        w_safe = sf.Min(1 - epsilon, w_positive)
+        return 2 * sf.acos(w_safe)
 
     def to_rotation_matrix(self) -> Matrix33:
         """
@@ -161,19 +169,19 @@ class Rot3(LieGroup):
         return Matrix33(
             [
                 [
-                    1 - 2 * self.q.y ** 2 - 2 * self.q.z ** 2,
+                    1 - 2 * self.q.y**2 - 2 * self.q.z**2,
                     2 * self.q.x * self.q.y - 2 * self.q.z * self.q.w,
                     2 * self.q.x * self.q.z + 2 * self.q.y * self.q.w,
                 ],
                 [
                     2 * self.q.x * self.q.y + 2 * self.q.z * self.q.w,
-                    1 - 2 * self.q.x ** 2 - 2 * self.q.z ** 2,
+                    1 - 2 * self.q.x**2 - 2 * self.q.z**2,
                     2 * self.q.y * self.q.z - 2 * self.q.x * self.q.w,
                 ],
                 [
                     2 * self.q.x * self.q.z - 2 * self.q.y * self.q.w,
                     2 * self.q.y * self.q.z + 2 * self.q.x * self.q.w,
-                    1 - 2 * self.q.x ** 2 - 2 * self.q.y ** 2,
+                    1 - 2 * self.q.x**2 - 2 * self.q.y**2,
                 ],
             ]
         )
@@ -217,7 +225,7 @@ class Rot3(LieGroup):
         # i,j,k is an even permutation of 0,1,2, then
         #   R[j, i] - R[i, j] = 4 * w * q_k
         #   R[j, i] + R[i, j] = 4 * q_i * q_j
-        # R[i, i] = 2(w^2 + q_i^2)
+        # R[i, i] = 2(w^2 + q_i^2) - 1
 
         def from_rotation_matrix_w_not_0(R: Matrix33, valid_input: T.Scalar) -> Quaternion:
             """
@@ -276,7 +284,17 @@ class Rot3(LieGroup):
         # So max(R00, R11, R22, R00 + R11 + R22) = max(x^2, y^2, z^2, w^2)
         # x^2 + y^2 + z^2 + w^2 = 1  =>  max(x^2, y^2, z^2, w^2) >= 1/4
         # This is all to say that if use_branch[i] = 1, then it's safe to use q_i's expression
-        use_branch = sf.argmax_onehot([R[0, 0], R[1, 1], R[2, 2], R[0, 0] + R[1, 1] + R[2, 2]])
+        #
+        # For the tolerance: The smallest the max of `|x|^2`, `|y|^2`, `|z|^2`, and `|w|^2` can be
+        # is `1/4`. So, if `R[i, i]` is within `0.1` of the max, that means `|x_i|^2` is within
+        # `0.05` of the max component, i.e., at least `1/5`. `1 / sqrt(5) = 0.47` is far from zero
+        # and save to divide by. Therefore the tolerance is not too large.
+        #
+        # It's not too small because the error that caused the bug in `argmax_onehot` will be at
+        # most a small multiple of machine epsilon, which is small compared to 0.1
+        use_branch = sf.argmax_onehot(
+            [R[0, 0], R[1, 1], R[2, 2], R[0, 0] + R[1, 1] + R[2, 2]], tolerance=0.1
+        )
         q = from_rotation_matrix_w_not_0(R, use_branch[3])
         for i in range(0, 3):
             q += from_rotation_matrix_qi_not_0(R, i, use_branch[i])
@@ -287,6 +305,11 @@ class Rot3(LieGroup):
     ) -> T.Tuple[T.Scalar, T.Scalar, T.Scalar]:
         """
         Compute the yaw, pitch, and roll Euler angles in radians of this rotation
+
+        Euler angles are subject to gimbal lock: https://en.wikipedia.org/wiki/Gimbal_lock
+
+        This means that when the pitch is close to +/- pi/2, the yaw and roll angles are not
+        uniquely defined, so the returned values are not unique in this case.
 
         Returns:
             Scalar: Yaw angle [radians]

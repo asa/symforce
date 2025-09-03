@@ -5,6 +5,8 @@
 
 #include "./tic_toc.h"
 
+#include <algorithm>
+
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <spdlog/spdlog.h>
@@ -100,7 +102,7 @@ TicTocManager::TicTocManager() {
   }
 }
 
-TicTocManager::~TicTocManager() {
+TicTocManager::~TicTocManager() noexcept {
   if (print_on_destruction_ && spdlog::should_log(spdlog::level::info)) {
     PrintTimingResults();
   }
@@ -127,8 +129,8 @@ void TicTocManager::PrintTimingResults(std::ostream& out) const {
   });
 
   int longest_name = 0;
-  for (const auto& block : blocks) {
-    longest_name = std::max<int>(block.first.size(), longest_name);
+  for (const auto& [name, _] : blocks) {
+    longest_name = std::max<int>(name.size(), longest_name);
   }
 
   const std::string header_fmt =
@@ -141,17 +143,15 @@ void TicTocManager::PrintTimingResults(std::ostream& out) const {
     separator += std::string("+") + std::string(16, '-');
   }
 
-  const std::string legend = fmt::format(header_fmt, "   Name", "Count", "Total Time (s)",
-                                         "Mean Time (s)", "Max Time (s)", "Min Time (s)");
+  const std::string legend =
+      fmt::format(fmt::runtime(header_fmt), "   Name", "Count", "Total Time (s)", "Mean Time (s)",
+                  "Max Time (s)", "Min Time (s)");
 
   fmt::print(out, "\nSymForce TicToc Results:\n");
   fmt::print(out, legend);
   fmt::print(out, separator + "\n");
 
-  for (const auto& block_pair : blocks) {
-    const auto& name = block_pair.first;
-    const auto& block = block_pair.second;
-
+  for (const auto& [name, block] : blocks) {
     fmt::print(out, output_fmt, name, block.Count(), float(block.TotalTime()),
                float(block.AverageTime()), float(block.MaxTime()), float(block.MinTime()));
   }
@@ -160,8 +160,8 @@ void TicTocManager::PrintTimingResults(std::ostream& out) const {
 void TicTocManager::Consume(const std::unordered_map<std::string, TicTocStats>& thread_map) {
   // Lock the consumer thread
   std::lock_guard<std::mutex> lock(tictoc_blocks_mutex_);
-  for (const auto& pair : thread_map) {
-    GetStatsWithoutLock(pair.first).Merge(pair.second);
+  for (const auto& [name, other] : thread_map) {
+    GetStatsWithoutLock(name).Merge(other);
   }
 }
 

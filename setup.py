@@ -3,8 +3,6 @@
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
 
-import distutils.errors
-import distutils.util
 import multiprocessing
 import os
 import re
@@ -14,26 +12,15 @@ import typing as T
 from pathlib import Path
 
 from setuptools import Extension
+from setuptools import find_namespace_packages
 from setuptools import find_packages
 from setuptools import setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.develop import develop
-from setuptools.command.egg_info import egg_info
 from setuptools.command.install import install
 
 SOURCE_DIR = Path(__file__).resolve().parent
-
-
-def symforce_version() -> str:
-    """
-    Fetch the current symforce version from _version.py
-
-    We can't import the version here, so we have to do some text parsing
-    """
-    version_file_contents = (Path(__file__).parent / "symforce" / "_version.py").read_text()
-    version_match = re.search(r'^version = "(.+)"$', version_file_contents, flags=re.MULTILINE)
-    assert version_match is not None
-    return version_match.group(1)
+ESCAPED_SOURCE_DIR = Path(str(SOURCE_DIR).replace(" ", "%20"))
 
 
 class CMakeExtension(Extension):
@@ -56,7 +43,7 @@ class PatchDevelop(develop):
     of setuptools).
     """
 
-    def run(self) -> None:  # type: ignore[override]
+    def run(self) -> None:  # type: ignore[override, unused-ignore]
         # NOTE(brad): In setuptools 64.0.0, the editable_mode field of the
         # build_ext was added and is set to True during a pep 660 editable
         # install.
@@ -65,7 +52,7 @@ class PatchDevelop(develop):
         # regardless of whether we're building with develop or build_editable,
         # (both before and after version 64.0.0), we patch develop to add this
         # field to build_ext and set it to True.
-        self.distribution.get_command_obj("build_ext").editable_mode = True  # type: ignore[attr-defined]
+        self.distribution.get_command_obj("build_ext").editable_mode = True  # type: ignore[misc]
         super().run()
 
 
@@ -122,7 +109,7 @@ class CMakeBuild(build_ext):
         # Assuming Makefiles
         build_args += ["--", f"-j{multiprocessing.cpu_count()}"]
 
-        self.build_args = build_args  # pylint: disable=attribute-defined-outside-init
+        self.build_args = build_args
 
         env = os.environ.copy()
         env["CXXFLAGS"] = '{} -DVERSION_INFO=\\"{}\\"'.format(
@@ -146,11 +133,8 @@ class CMakeBuild(build_ext):
             # in the symenginepy/symengine source directory. Everything is already there
             # except the compiled symengine_wrapper extension module, so we copy that there
             # as well.
-            symengine_wrapper = next(
-                build_temp_path.glob(
-                    f"symengine_install/**/lib/python{sys.version_info.major}.{sys.version_info.minor}/*-packages/symengine/lib/{self.get_ext_filename('symengine_wrapper')}"
-                ),
-                None,
+            symengine_wrapper = maybe_find_symengine_wrapper(
+                build_temp_path, self.get_ext_filename("symengine_wrapper")
             )
             # NOTE(brad) For some reason that I don't fully understand, the symengine_wrapper
             # shared library is neither present in symengine_install nor needed in the source
@@ -158,13 +142,15 @@ class CMakeBuild(build_ext):
             # So, if the file's not present, we just move on.
             if symengine_wrapper:
                 self.copy_file(
-                    symengine_wrapper,
-                    SOURCE_DIR
-                    / "third_party"
-                    / "symenginepy"
-                    / "symengine"
-                    / "lib"
-                    / self.get_ext_filename("symengine_wrapper"),
+                    str(symengine_wrapper),
+                    str(
+                        SOURCE_DIR
+                        / "third_party"
+                        / "symenginepy"
+                        / "symengine"
+                        / "lib"
+                        / self.get_ext_filename("symengine_wrapper")
+                    ),
                 )
 
             # NOTE(brad) By setting the RPATH of the generated binaries to include $ORIGIN,
@@ -175,8 +161,8 @@ class CMakeBuild(build_ext):
             # find them when it looks.
             for cc_sym_dependency in build_temp_path.glob("libsymforce_*"):
                 self.copy_file(
-                    cc_sym_dependency,
-                    SOURCE_DIR / cc_sym_dependency.name,
+                    str(cc_sym_dependency),
+                    str(SOURCE_DIR / cc_sym_dependency.name),
                 )
 
         # Move from build temp to final position
@@ -184,9 +170,9 @@ class CMakeBuild(build_ext):
             self.move_output(ext)
 
     def move_output(self, ext: CMakeExtension) -> None:
-        if ext.name == "lcmtypes":  # type: ignore[attr-defined]
+        if ext.name == "lcmtypes":
             build_temp_path = Path(self.build_temp)
-            dest_path_dir = Path(self.get_ext_fullpath(ext.name)).resolve().parent  # type: ignore[attr-defined]
+            dest_path_dir = Path(self.get_ext_fullpath(ext.name)).resolve().parent
             if self.inplace:
                 # NOTE(brad): If building in-place, place package in lcmtypes_build dir to avoid
                 # collision with existing lcmtypes directory. Happens in editable installs.
@@ -204,65 +190,45 @@ class CMakeBuild(build_ext):
         extension_source_paths = {"cc_sym": build_temp / "pybind" / self.get_ext_filename("cc_sym")}
 
         build_temp = Path(self.build_temp).resolve()
-        dest_path = Path(self.get_ext_fullpath(ext.name)).resolve()  # type: ignore[attr-defined]
+        dest_path = Path(self.get_ext_fullpath(ext.name)).resolve()
         dest_directory = dest_path.parents[0]
         dest_directory.mkdir(parents=True, exist_ok=True)
-        self.copy_file(extension_source_paths[ext.name], dest_path)  # type: ignore[attr-defined]
+        self.copy_file(extension_source_paths[ext.name], str(dest_path))
 
 
-class SymForceEggInfo(egg_info):
-    """
-    Custom Egg info, that optionally rewrites local dependencies (that are stored in the symforce
-    repo) to package dependencies
-    """
+def maybe_rewrite_local_dependencies(dep_list: T.List[str]) -> T.List[str]:
+    if "SYMFORCE_REWRITE_LOCAL_DEPENDENCIES" in os.environ:
 
-    user_options = egg_info.user_options + [
-        (
-            "rewrite-local-dependencies=",
-            None,
-            "Rewrite in-repo Python dependencies from `package @ file:` to `package==version`.  Can"
-            " also be provided as the environment variable SYMFORCE_REWRITE_LOCAL_DEPENDENCIES",
+        def filter_local(s: str) -> str:
+            if "@" in s:
+                s = f"{s.split('@')[0]}=={os.environ['SYMFORCE_REWRITE_LOCAL_DEPENDENCIES']}"
+            return s
+
+        return [filter_local(dependency) for dependency in dep_list]
+    else:
+        return dep_list
+
+
+def maybe_find_symengine_wrapper(build_dir: Path, ext_filename: str) -> T.Optional[Path]:
+    symengine_wrapper_candidates = list(
+        build_dir.glob(
+            f"symengine_install/**/lib/python{sys.version_info.major}.{sys.version_info.minor}/*-packages/symengine/lib/{ext_filename}"
         )
-    ]
+    )
 
-    def initialize_options(self) -> None:
-        super().initialize_options()
-        self.rewrite_local_dependencies = False  # pylint: disable=attribute-defined-outside-init
+    if len(symengine_wrapper_candidates) > 1:
+        raise FileNotFoundError(
+            f"Expected to find exactly one symengine_wrapper.so, but found {len(symengine_wrapper_candidates)}: {symengine_wrapper_candidates}"
+        )
 
-    def finalize_options(self) -> None:
-        super().finalize_options()
+    return next(iter(symengine_wrapper_candidates), None)
 
-        if not isinstance(self.rewrite_local_dependencies, bool):
-            self.rewrite_local_dependencies = (  # pylint: disable=attribute-defined-outside-init
-                bool(distutils.util.strtobool(self.rewrite_local_dependencies))
-            )
 
-        if "SYMFORCE_REWRITE_LOCAL_DEPENDENCIES" in os.environ:
-            self.rewrite_local_dependencies = (  # pylint: disable=attribute-defined-outside-init
-                bool(distutils.util.strtobool(os.environ["SYMFORCE_REWRITE_LOCAL_DEPENDENCIES"]))
-            )
-
-    def run(self) -> None:
-        # Rewrite dependencies from the local `file:` versions to generic pinned package versions.
-        # This is what we want when e.g. building wheels for PyPI, where those local dependencies
-        # are hosted as their own PyPI packages.  We can't just decide whether to do this e.g. based
-        # on whether we're building a wheel, since `pip install .` also builds a wheel to install.
-        if self.rewrite_local_dependencies:
-
-            def filter_local(s: str) -> str:
-                if "@" in s:
-                    s = f"{s.split('@')[0]}=={symforce_version()}"
-                return s
-
-            self.distribution.install_requires = [  # type: ignore[attr-defined]
-                filter_local(requirement) for requirement in self.distribution.install_requires  # type: ignore[attr-defined]
-            ]
-            self.distribution.extras_require = {  # type: ignore[attr-defined]
-                k: [filter_local(requirement) for requirement in v]
-                for k, v in self.distribution.extras_require.items()  # type: ignore[attr-defined]
-            }
-
-        super().run()
+def find_symengine_wrapper(build_dir: Path, ext_filename: str) -> Path:
+    symengine_wrapper = maybe_find_symengine_wrapper(build_dir, ext_filename)
+    if symengine_wrapper is None:
+        raise FileNotFoundError(f"Could not find symengine_wrapper.so in {build_dir}")
+    return symengine_wrapper
 
 
 class InstallWithExtras(install):
@@ -276,8 +242,9 @@ class InstallWithExtras(install):
     def run(self) -> None:
         super().run()
 
-        build_ext_obj = self.distribution.get_command_obj("build_ext")  # type: ignore[attr-defined]
-        build_dir = Path(self.distribution.get_command_obj("build_ext").build_temp)  # type: ignore[attr-defined]
+        build_ext_obj = self.distribution.get_command_obj("build_ext")
+        assert isinstance(build_ext_obj, CMakeBuild)
+        build_dir = Path(build_ext_obj.build_temp)
 
         # Install symengine
         # NOTE(aaron): We add symenginepy as a package down below, and the only remaining thing we
@@ -285,16 +252,13 @@ class InstallWithExtras(install):
         # include the additional Cython sources that symenginepy includes in their distributions,
         # but I'm honestly not sure why they include them or why you'd need them.
         self.copy_file(
-            build_dir
-            / "symengine_install"
-            / "lib"
-            / f"python{sys.version_info.major}.{sys.version_info.minor}"
-            / "site-packages"
-            / "symengine"
-            / "lib"
-            / build_ext_obj.get_ext_filename("symengine_wrapper"),
+            str(
+                find_symengine_wrapper(
+                    build_dir, build_ext_obj.get_ext_filename("symengine_wrapper")
+                )
+            ),
             Path.cwd()
-            / self.install_platlib  # type: ignore[attr-defined]
+            / self.install_platlib
             / "symengine"
             / "lib"
             / build_ext_obj.get_ext_filename("symengine_wrapper"),
@@ -316,15 +280,17 @@ class InstallWithExtras(install):
 
 
 setup_requirements = [
-    "setuptools",
+    "setuptools>=62.3.0",  # For package data globs
+    "setuptools-scm>=8",
     "wheel",
     "pip",
     "cmake>=3.17",
-    "cython>=0.19.1",
-    f"skymarshal @ file://localhost/{SOURCE_DIR}/third_party/skymarshal",
+    "cython>=0.19.1,<3",
+    f"skymarshal @ file://localhost/{ESCAPED_SOURCE_DIR}/third_party/skymarshal",
 ]
 
 docs_requirements = [
+    "furo",
     "ipykernel",
     # nbconvert depends on this, but doesn't specify the dependency
     "ipython-genutils",
@@ -335,32 +301,10 @@ docs_requirements = [
     "pandas",
     "plotly",
     "Sphinx",
-    # sphinx-autodoc-typehints >=1.15 contains a bug causing it to crash parsing our typing.py
-    "sphinx-autodoc-typehints<1.15",
+    "sphinx-copybutton",
+    "sphinxext-opengraph",
     "breathe",
 ]
-
-cmdclass: T.Dict[str, T.Any] = dict(
-    build_ext=CMakeBuild,
-    install=InstallWithExtras,
-    egg_info=SymForceEggInfo,
-    develop=PatchDevelop,
-)
-
-
-def symforce_data_files() -> T.List[str]:
-    # package_data doesn't support recursive globs until this merges:
-    # https://github.com/pypa/setuptools/pull/3309
-    # So, we do the globbing ourselves
-    SYMFORCE_PKG_DIR = SOURCE_DIR / "symforce"
-    files_with_pattern = lambda pattern: [
-        str(p.relative_to(SYMFORCE_PKG_DIR)) for p in SYMFORCE_PKG_DIR.rglob(pattern)
-    ]
-    return (
-        files_with_pattern("*.jinja")
-        + files_with_pattern("*.mtx")
-        + ["test_util/random_expressions/README", ".clang-format"]
-    )
 
 
 def symforce_rev() -> str:
@@ -381,7 +325,7 @@ def fixed_readme() -> str:
     """
     Fix things in the README for PyPI
     """
-    readme = Path("README.md").read_text()
+    readme = Path("README.md").read_text(encoding="UTF8")
 
     # Replace relative links with absolute, so images appear correctly on PyPI
     readme = readme.replace(
@@ -390,6 +334,7 @@ def fixed_readme() -> str:
     )
 
     # Remove the DARK_MODE_ONLY tags
+    # https://github.com/pypi/warehouse/issues/11251
     # See https://stackoverflow.com/a/1732454/2791611
     readme = re.sub(
         r"<!--\s*DARK_MODE_ONLY\s*-->((?!DARK_MODE_ONLY).)*<!--\s*/DARK_MODE_ONLY\s*-->",
@@ -401,104 +346,74 @@ def fixed_readme() -> str:
     return readme
 
 
-setup(
-    name="symforce",
-    version=symforce_version(),
-    author="Skydio, Inc",
-    author_email="hayk@skydio.com",
-    description="Fast symbolic computation, code generation, and nonlinear optimization for robotics",
-    keywords="python computer-vision cpp robotics optimization structure-from-motion motion-planning code-generation slam autonomous-vehicles symbolic-computation",
-    license="Apache 2.0",
-    license_file="LICENSE",
-    long_description=fixed_readme(),
-    long_description_content_type="text/markdown",
-    url="https://github.com/symforce-org/symforce",
-    project_urls={
-        "Bug Tracker": "https://github.com/symforce-org/symforce/issues",
-        "Source": "https://github.com/symforce-org/symforce",
-    },
-    # For a list of valid classifiers see https://pypi.org/classifiers/
-    classifiers=[
-        "Development Status :: 4 - Beta",
-        "Intended Audience :: Developers",
-        "Intended Audience :: Education",
-        "Intended Audience :: Science/Research",
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
-        "Topic :: Scientific/Engineering :: Mathematics",
-        "Topic :: Software Development :: Code Generators",
-        "Topic :: Software Development :: Embedded Systems",
-        "Topic :: Software Development :: Libraries :: Python Modules",
-        "Topic :: Education :: Computer Aided Instruction (CAI)",
-        "Programming Language :: Python",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: C++",
-        "License :: OSI Approved :: Apache Software License",
-        "Operating System :: OS Independent",
-    ],
-    # -------------------------------------------------------------------------
-    # Build info
-    # -------------------------------------------------------------------------
-    # Minimum Python version
-    python_requires=">=3.8",
-    # Find all packages in the directory
-    packages=find_packages() + find_packages(where="third_party/symenginepy"),
-    package_data={
-        "symforce": symforce_data_files(),
-    },
-    package_dir={
-        "symforce": "symforce",
-        "symengine": "third_party/symenginepy/symengine",
-        "lcmtypes": "lcmtypes_build/lcmtypes",
-    },
-    # Override the extension builder with our cmake class
-    cmdclass=cmdclass,
-    # Build C++ extension module
-    ext_modules=[CMakeExtension("cc_sym"), CMakeExtension("lcmtypes")],
-    # Barebones packages needed to run symforce
-    install_requires=[
-        "black",
-        "clang-format",
-        "graphviz",
-        "jinja2",
-        "numpy",
-        "scipy",
-        f"skymarshal @ file://localhost/{SOURCE_DIR}/third_party/skymarshal",
-        "sympy~=1.11.1",
-        f"symforce-sym @ file://localhost/{SOURCE_DIR}/gen/python",
-    ],
-    setup_requires=setup_requirements,
-    extras_require={
-        "docs": docs_requirements,
-        "dev": docs_requirements
-        + [
-            "click~=8.0.4",  # Required by black, but not specified by our version of black
-            "argh",
-            "black[jupyter]==21.12b0",
-            "coverage",
-            "isort",
-            "jinja2~=3.0.3",
-            "mypy==0.910",
-            # Not compatible with py3.11 yet: https://github.com/numba/numba/issues/8304
-            "numba ; python_version < '3.11'",
-            # A dependency of numba, only required here because pip-tools does not automatically
-            # propagate python_version to dependencies
-            "llvmlite ; python_version < '3.11'",
-            "pip-tools<6.11",
-            "pybind11-stubgen",
-            "pylint",
-            # NOTE(brad): A transitive dependency of pylint. Added here only to pin the version.
-            "lazy-object-proxy>=1.9.0",
-            "types-jinja2",
-            "types-pygments",
-            "types-requests",
-            "types-setuptools",
-        ],
-        "_setup": setup_requirements,
-    },
-    # Not okay to zip
-    zip_safe=False,
-)
+if __name__ == "__main__":
+    setup(
+        long_description=fixed_readme(),
+        long_description_content_type="text/markdown",
+        # The SymForce package is a namespace package (important for data-only subdirectories
+        # specifically).  We could also treat the others as namespace packages, but that makes it
+        # more annoying to exclude non-package directories.
+        packages=find_namespace_packages(where=".", include=["symforce*"])
+        + find_packages(where=".", exclude=["symforce*"])
+        + find_packages(where="third_party/symenginepy"),
+        package_dir={
+            "symforce": "symforce",
+            "symengine": "third_party/symenginepy/symengine",
+            "lcmtypes": "lcmtypes_build/lcmtypes",
+        },
+        package_data={
+            "": ["*.jinja", "*.mtx", "README*", ".clang-format", "py.typed", "ruff.toml"]
+        },
+        # pyproject.toml doesn't allow specifying url or homepage separately, and if it's not
+        # specified separately PyPI sorts all the links alphabetically
+        # https://github.com/pypi/warehouse/issues/3097
+        url="https://symforce.org",
+        # Override the extension builder with our cmake class
+        cmdclass=dict(
+            build_ext=CMakeBuild,
+            install=InstallWithExtras,
+            develop=PatchDevelop,
+        ),
+        # Build C++ extension module
+        ext_modules=[CMakeExtension("cc_sym"), CMakeExtension("lcmtypes")],
+        # Barebones packages needed to run symforce
+        install_requires=maybe_rewrite_local_dependencies(
+            [
+                "ruff",
+                "clang-format",
+                "graphviz",
+                "jinja2",
+                # numpy 2.0 isn't supported until SymPy 1.13.0
+                # https://github.com/sympy/sympy/wiki/Release-Notes-for-1.13.0
+                "numpy<2.0",
+                "scipy",
+                f"skymarshal @ file://localhost/{ESCAPED_SOURCE_DIR}/third_party/skymarshal",
+                "sympy~=1.11.1",
+                f"symforce-sym @ file://localhost/{ESCAPED_SOURCE_DIR}/gen/python",
+                "typing-extensions; python_version<'3.9'",
+            ]
+        ),
+        setup_requires=setup_requirements,
+        extras_require={
+            "docs": maybe_rewrite_local_dependencies(docs_requirements),
+            "dev": maybe_rewrite_local_dependencies(
+                docs_requirements
+                + [
+                    "argh",
+                    "coverage",
+                    "jinja2~=3.0",
+                    "mypy~=1.11.0",
+                    "numba",
+                    # For https://github.com/sizmailov/pybind11-stubgen/pull/243
+                    "pybind11-stubgen>=2.5.3",
+                    "ruff~=0.9.7",
+                    "types-jinja2",
+                    "types-requests",
+                    "types-setuptools",
+                    # Oldest version that solves to the right requirements
+                    "uv>=0.2.0",
+                ]
+            ),
+            "setup": maybe_rewrite_local_dependencies(setup_requirements),
+        },
+    )

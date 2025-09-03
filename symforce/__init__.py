@@ -4,22 +4,20 @@
 # ----------------------------------------------------------------------------
 
 """
-Initialization configuration for symforce, as minimal as possible.
+The top-level symforce package
+
+Importing this by itself performs minimal initialization configuration, and the functions here are
+mostly for configuration purposes.
+
+In particular, this primarily performs configuration that you might need before importing
+:mod:`symforce.symbolic`.
 """
-from __future__ import absolute_import
 
 import os
 import sys
 import typing as T
-import warnings
+from dataclasses import dataclass
 from types import ModuleType
-
-# -------------------------------------------------------------------------------------------------
-# Version
-# -------------------------------------------------------------------------------------------------
-
-# isort: split
-from ._version import version as __version__
 
 # -------------------------------------------------------------------------------------------------
 # Logging configuration
@@ -40,11 +38,11 @@ def set_log_level(log_level: str) -> None:
 
     The default is INFO, but can be set by one of:
 
-        1) The SYMFORCE_LOGLEVEL environment variable
-        2) Calling this function before any other symforce imports
+    1) The SYMFORCE_LOGLEVEL environment variable
+    2) Calling this function before any other symforce imports
 
     Args:
-        log_level (str): {DEBUG, INFO, WARNING, ERROR, CRITICAL}
+        log_level: {DEBUG, INFO, WARNING, ERROR, CRITICAL}
     """
     # Set default log level
     if not hasattr(logging, log_level.upper()):
@@ -60,6 +58,34 @@ def set_log_level(log_level: str) -> None:
 
 # Set default
 set_log_level(os.environ.get("SYMFORCE_LOGLEVEL", "INFO"))
+
+# -------------------------------------------------------------------------------------------------
+# Version
+# -------------------------------------------------------------------------------------------------
+
+# isort: split
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version
+
+try:
+    __version__ = version("symforce")
+except PackageNotFoundError:
+    logger.debug(
+        "symforce package is not being run from an installed context; falling back to"
+        " setuptools_scm for __version__"
+    )
+
+    try:
+        import setuptools_scm
+    except ImportError:
+        # setuptools_scm isn't required to be installed
+        logger.debug("setuptools_scm not installed; __version__ will not be set")
+    else:
+        try:
+            __version__ = setuptools_scm.get_version(root="..", relative_to=__file__)
+        except LookupError:
+            logger.debug("setuptools_scm failed to find version; __version__ will not be set")
+
 
 # -------------------------------------------------------------------------------------------------
 # Symbolic API configuration
@@ -89,56 +115,58 @@ def _find_symengine() -> ModuleType:
         import symengine
 
         return symengine
-    except ImportError:
-        pass
+    except ImportError as ex:
+        import importlib
+        import importlib.abc
+        import importlib.util
 
-    import importlib
-    import importlib.abc
-    import importlib.util
+        from . import path_util
 
-    from . import path_util
+        try:
+            symengine_install_dir = path_util.symenginepy_install_dir()
+        except path_util.MissingManifestException:
+            raise ImportError(
+                "Unable to import SymEngine, either installed or in the manifest.json"
+            ) from ex
 
-    try:
-        symengine_install_dir = path_util.symenginepy_install_dir()
-    except path_util.MissingManifestException as ex:
-        raise ImportError from ex
-
-    symengine_path_candidates = list(
-        symengine_install_dir.glob("lib/python3*/site-packages/symengine/__init__.py")
-    ) + list(symengine_install_dir.glob("local/lib/python3*/dist-packages/symengine/__init__.py"))
-    if len(symengine_path_candidates) != 1:
-        raise ImportError(
-            f"Should be exactly one symengine package, found candidates {symengine_path_candidates} in directory {path_util.symenginepy_install_dir()}"
+        symengine_path_candidates = list(
+            symengine_install_dir.glob("lib/python3*/site-packages/symengine/__init__.py")
+        ) + list(
+            symengine_install_dir.glob("local/lib/python3*/dist-packages/symengine/__init__.py")
         )
-    symengine_path = symengine_path_candidates[0]
+        if len(symengine_path_candidates) != 1:
+            raise ImportError(
+                f"Should be exactly one symengine package, found candidates {symengine_path_candidates} in directory {path_util.symenginepy_install_dir()}"
+            ) from ex
+        symengine_path = symengine_path_candidates[0]
 
-    # Import symengine from the directory where we installed it.  See
-    # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-    spec = importlib.util.spec_from_file_location("symengine", symengine_path)
-    assert spec is not None
-    symengine = importlib.util.module_from_spec(spec)
-    sys.modules["symengine"] = symengine
+        # Import symengine from the directory where we installed it.  See
+        # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
+        spec = importlib.util.spec_from_file_location("symengine", symengine_path)
+        assert spec is not None
+        symengine = importlib.util.module_from_spec(spec)
+        sys.modules["symengine"] = symengine
 
-    # For mypy: https://github.com/python/typeshed/issues/2793
-    assert isinstance(spec.loader, importlib.abc.Loader)
+        # For mypy: https://github.com/python/typeshed/issues/2793
+        assert isinstance(spec.loader, importlib.abc.Loader)
 
-    try:
-        spec.loader.exec_module(symengine)
-    except:  # pylint: disable=bare-except
-        # If executing the module fails for any reason, it shouldn't be in `sys.modules`
-        del sys.modules["symengine"]
-        raise
+        try:
+            spec.loader.exec_module(symengine)
+        except:
+            # If executing the module fails for any reason, it shouldn't be in `sys.modules`
+            del sys.modules["symengine"]
+            raise
 
-    return symengine
+        return symengine
 
 
-_symbolic_api: T.Optional[str] = None
+_symbolic_api: T.Optional[T.Literal["sympy", "symengine"]] = None
 _have_imported_symbolic = False
 
 
-def _set_symbolic_api(sympy_module: str) -> None:
+def _set_symbolic_api(sympy_module: T.Literal["sympy", "symengine"]) -> None:
     # Set this as the default symbolic API
-    global _symbolic_api  # pylint: disable=global-statement
+    global _symbolic_api  # noqa: PLW0603
     _symbolic_api = sympy_module
 
 
@@ -156,24 +184,29 @@ def _use_symengine() -> None:
 def _use_sympy() -> None:
     # Import just to make sure it's importable and fail here if it's not (as opposed to failing
     # later)
-    import sympy as sympy_py  # pylint: disable=unused-import
+    import sympy as sympy_py
 
     _set_symbolic_api("sympy")
 
 
 def set_symbolic_api(name: str) -> None:
     """
-    Set the symbolic API for symforce. The sympy API is the default and pure python,
-    whereas the symengine API is C++ and requires building the symengine library. It can
-    be 100-200 times faster for many operations, but is less fully featured.
+    Set the symbolic API for symforce
 
-    The default is symengine if available else sympy, but can be set by one of:
+    See the SymPy tutorial for information on the symbolic APIs that can be used:
+    https://symforce.org/tutorials/sympy_tutorial.html
 
-        1) The SYMFORCE_SYMBOLIC_API environment variable
-        2) Calling this function before any other symforce imports
+    By default, SymForce will use the ``symengine`` API if it is available.  If the symbolic API is
+    set to ``sympy`` it will use that.  If ``symengine`` is not available and the symbolic API was
+    not set, it will emit a warning and use the ``sympy`` API.
+
+    The symbolic API can be set by one of:
+
+    1) The ``SYMFORCE_SYMBOLIC_API`` environment variable
+    2) Calling this function before any other symforce imports
 
     Args:
-        name (str): {sympy, symengine}
+        name: {sympy, symengine}
     """
     if _have_imported_symbolic and name != _symbolic_api:
         raise ValueError(
@@ -206,32 +239,15 @@ else:
         logger.debug("No SYMFORCE_SYMBOLIC_API set, found and using symengine.")
         set_symbolic_api("symengine")
     except ImportError:
-        logger.debug("No SYMFORCE_SYMBOLIC_API set, no symengine found, using sympy.")
-        set_symbolic_api("sympy")
+        logger.debug("No SYMFORCE_SYMBOLIC_API set, no symengine found.  Will use sympy.")
+        pass
 
 
-def get_symbolic_api() -> str:
+def get_symbolic_api() -> T.Literal["sympy", "symengine"]:
     """
     Return the current symbolic API as a string.
-
-    Returns:
-        str:
     """
-    assert _symbolic_api is not None
-    return _symbolic_api
-
-
-# NOTE(hayk): Remove this after they are present in a release or two.
-
-
-def get_backend() -> str:
-    warnings.warn("`get_backend` is deprecated, use `get_symbolic_api`", FutureWarning)
-    return get_symbolic_api()
-
-
-def set_backend(name: str) -> None:
-    warnings.warn("`set_backend` is deprecated use `set_symbolic_api`", FutureWarning)
-    return set_symbolic_api(name)
+    return _symbolic_api or "sympy"
 
 
 # --------------------------------------------------------------------------------
@@ -250,7 +266,7 @@ class AlreadyUsedEpsilon(Exception):
     pass
 
 
-_epsilon = 0.0
+_epsilon: T.Any = 0.0
 _have_used_epsilon = False
 
 
@@ -258,49 +274,52 @@ def _set_epsilon(new_epsilon: T.Any) -> None:
     """
     Set the default epsilon for SymForce
 
-    This must be called before `symforce.symbolic` or other symbolic libraries have been imported.
-    Typically it should be set to some kind of Scalar, such as an int, float, or Symbol.  See
-    `symforce.symbolic.epsilon` for more information.
+    This must be called before :mod:`symforce.symbolic` or other symbolic libraries have been
+    imported. Typically it should be set to some kind of Scalar, such as an int, float, or Symbol.
+    See :func:`symforce.symbolic.epsilon` for more information.
 
     Args:
         new_epsilon: The new default epsilon to use
     """
-    global _epsilon  # pylint: disable=global-statement
+    global _epsilon  # noqa: PLW0603
 
     if _have_used_epsilon and new_epsilon != _epsilon:
         raise AlreadyUsedEpsilon(
-            "Cannot set return value of epsilon after it has already been called."
+            f"Cannot set return value of epsilon to {new_epsilon} after it has already been "
+            f"accessed with value {_epsilon}."
         )
 
     _epsilon = new_epsilon
+
+
+@dataclass
+class SymbolicEpsilon:
+    """
+    An indicator that SymForce should use a symbolic epsilon
+    """
+
+    name: str
 
 
 def set_epsilon_to_symbol(name: str = "epsilon") -> None:
     """
     Set the default epsilon for Symforce to a Symbol.
 
-    This must be called before `symforce.symbolic` or other symbolic libraries have been imported.
-    See `symforce.symbolic.epsilon` for more information.
+    This must be called before :mod:`symforce.symbolic` or other symbolic libraries have been
+    imported. See :func:`symforce.symbolic.epsilon` for more information.
 
     Args:
         name: The name of the symbol for the new default epsilon to use
     """
-    if get_symbolic_api() == "sympy":
-        import sympy
-    elif get_symbolic_api() == "symengine":
-        sympy = _find_symengine()
-    else:
-        raise InvalidSymbolicApiError(get_symbolic_api())
-
-    _set_epsilon(sympy.Symbol(name))
+    _set_epsilon(SymbolicEpsilon(name))
 
 
 def set_epsilon_to_number(value: T.Any = numeric_epsilon) -> None:
     """
     Set the default epsilon for Symforce to a number.
 
-    This must be called before `symforce.symbolic` or other symbolic libraries have been imported.
-    See `symforce.symbolic.epsilon` for more information.
+    This must be called before :mod:`symforce.symbolic` or other symbolic libraries have been
+    imported. See :func:`symforce.symbolic.epsilon` for more information.
 
     Args:
         value: The new default epsilon to use
@@ -312,22 +331,22 @@ def set_epsilon_to_zero() -> None:
     """
     Set the default epsilon for Symforce to zero.
 
-    This must be called before `symforce.symbolic` or other symbolic libraries have been imported.
-    See `symforce.symbolic.epsilon` for more information.
+    This must be called before :mod:`symforce.symbolic` or other symbolic libraries have been
+    imported. See :func:`symforce.symbolic.epsilon` for more information.
     """
     _set_epsilon(0.0)
 
 
 def set_epsilon_to_invalid() -> None:
     """
-    Set the default epsilon for SymForce to `None`.  Should not be used to actually create
+    Set the default epsilon for SymForce to ``None``.  Should not be used to actually create
     expressions or generate code.
 
     This is useful if you've forgotten to pass an epsilon somewhere, but are not sure where - using
-    this epsilon in an expression should throw a `TypeError` near the location where you forgot to
+    this epsilon in an expression should throw a ``TypeError`` near the location where you forgot to
     pass an epsilon.
 
-    This must be called before `symforce.symbolic` or other symbolic libraries have been imported.
-    See `symforce.symbolic.epsilon` for more information.
+    This must be called before :mod:`symforce.symbolic` or other symbolic libraries have been
+    imported. See :func:`symforce.symbolic.epsilon` for more information.
     """
     _set_epsilon(None)

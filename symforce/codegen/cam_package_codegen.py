@@ -3,6 +3,8 @@
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
 
+from __future__ import annotations
+
 import collections
 import tempfile
 import textwrap
@@ -21,18 +23,7 @@ from symforce.codegen import PythonConfig
 from symforce.codegen import template_util
 from symforce.codegen.ops_codegen_util import make_group_ops_funcs
 from symforce.codegen.ops_codegen_util import make_lie_group_ops_funcs
-
-# Default cam types to generate
-DEFAULT_CAM_TYPES = sf.CameraCal.__subclasses__()
-
-
-def camera_cal_class_names() -> T.List[str]:
-    """
-    Returns a sorted list of the CameraCal subclass names.
-    """
-    class_names = [cam_cal_cls.__name__ for cam_cal_cls in sf.CameraCal.__subclasses__()]
-    class_names.sort()
-    return class_names
+from symforce.codegen.ops_codegen_util import make_manifold_ops_funcs
 
 
 def pixel_from_camera_point_with_jacobians(
@@ -41,7 +32,7 @@ def pixel_from_camera_point_with_jacobians(
     """
     Project a 3D point in the camera frame into 2D pixel coordinates.
 
-    Return:
+    Returns:
         pixel: (x, y) coordinate in pixels if valid
         is_valid: 1 if the operation is within bounds else 0
         pixel_D_cal: Derivative of pixel with respect to intrinsic calibration parameters
@@ -49,8 +40,8 @@ def pixel_from_camera_point_with_jacobians(
 
     """
     pixel, is_valid = self.pixel_from_camera_point(point, epsilon)
-    pixel_D_cal = pixel.jacobian(self.parameters())
-    pixel_D_point = pixel.jacobian(point)
+    pixel_D_cal = pixel.jacobian(self.parameters(), epsilon=epsilon)
+    pixel_D_point = pixel.jacobian(point, epsilon=epsilon)
     return pixel, is_valid, pixel_D_cal, pixel_D_point
 
 
@@ -60,15 +51,15 @@ def camera_ray_from_pixel_with_jacobians(
     """
     Backproject a 2D pixel coordinate into a 3D ray in the camera frame.
 
-    Return:
+    Returns:
         camera_ray: The ray in the camera frame (NOT normalized)
         is_valid: 1 if the operation is within bounds else 0
         point_D_cal: Derivative of point with respect to intrinsic calibration parameters
         point_D_pixel: Derivation of point with respect to pixel
     """
     point, is_valid = self.camera_ray_from_pixel(pixel, epsilon)
-    point_D_cal = point.jacobian(self.parameters())
-    point_D_pixel = point.jacobian(pixel)
+    point_D_cal = point.jacobian(self.parameters(), epsilon=epsilon)
+    point_D_pixel = point.jacobian(pixel, epsilon=epsilon)
     return point, is_valid, point_D_cal, point_D_pixel
 
 
@@ -163,6 +154,13 @@ def cam_class_data(cls: T.Type, config: CodegenConfig) -> T.Dict[str, T.Any]:
     for func in make_lie_group_ops_funcs(cls, config):
         data["specs"]["LieGroupOps"].append(func)
 
+    for func in make_manifold_ops_funcs(cls, config):
+        data["specs"]["LieGroupOps"].append(func)
+
+    data["is_group"] = True
+    data["is_lie_group"] = True
+    data["is_manifold"] = True
+
     for func in make_camera_funcs(cls, config):
         data["specs"]["CameraOps"].append(func)
 
@@ -173,12 +171,11 @@ def cam_class_data(cls: T.Type, config: CodegenConfig) -> T.Dict[str, T.Any]:
     return data
 
 
-def class_template_data(
-    cls: T.Type, functions_to_doc: T.Sequence["function"]
-) -> T.Dict[str, T.Any]:
+def class_template_data(cls: T.Type, functions_to_doc: T.Sequence[function]) -> T.Dict[str, T.Any]:  # noqa: F821
     data = Codegen.common_data()
     data["doc"] = {}
-    data["doc"]["cls"] = textwrap.dedent(cls.__doc__).strip()  # type: ignore
+    assert cls.__doc__ is not None
+    data["doc"]["cls"] = textwrap.dedent(cls.__doc__).strip()
     for func in functions_to_doc:
         if func.__doc__ is not None:
             data["doc"][func.__name__] = textwrap.dedent(func.__doc__)
@@ -215,7 +212,7 @@ _DISTORTION_COEFF_VALS: T.Dict[str, T.Dict[str, T.Any]] = {
     },
     sf.SphericalCameraCal.__name__: {
         "critical_theta": np.pi,
-        "distortion_coeffs": [0.035, -0.025, 0.0070, -0.0015],
+        "distortion_coeffs": [0.035, -0.025, 0.0070, -0.0015, 0.00023, -0.00027],
     },
 }
 
@@ -239,7 +236,7 @@ def cam_cal_from_points(
     )
 
 
-def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
+def generate(config: CodegenConfig, output_dir: T.Optional[Path] = None) -> Path:
     """
     Generate the cam package for the given language.
     """
@@ -265,7 +262,7 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
 
         # Build up templates for each type
 
-        for cls in DEFAULT_CAM_TYPES:
+        for cls in sf.CAM_TYPES:
             data = cam_class_data(cls, config=config)
 
             for base_dir, relative_path in (
@@ -292,7 +289,7 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
             template_path=Path("geo_package", "__init__.py.jinja"),
             data=dict(
                 Codegen.common_data(),
-                all_types=list(geo_package_codegen.DEFAULT_GEO_TYPES) + list(DEFAULT_CAM_TYPES),
+                all_types=list(sf.GEO_TYPES) + list(sf.CAM_TYPES),
                 numeric_epsilon=sf.numeric_epsilon,
             ),
             config=config.render_template_config,
@@ -305,7 +302,7 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
                 output_path=output_dir / "tests" / name,
                 data=dict(
                     Codegen.common_data(),
-                    all_types=DEFAULT_CAM_TYPES,
+                    all_types=sf.CAM_TYPES,
                     cam_cal_from_points=cam_cal_from_points,
                     _DISTORTION_COEFF_VALS=_DISTORTION_COEFF_VALS,
                 ),
@@ -322,7 +319,7 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
         geo_package_codegen.generate(config=config, output_dir=output_dir)
 
         # Build up templates for each type
-        for cls in DEFAULT_CAM_TYPES:
+        for cls in sf.CAM_TYPES:
             data = cam_class_data(cls, config=config)
 
             for base_dir, relative_path in (
@@ -376,21 +373,28 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
                 output_path=output_dir / "tests" / name,
                 data=dict(
                     Codegen.common_data(),
-                    all_types=DEFAULT_CAM_TYPES,
+                    all_types=sf.CAM_TYPES,
                     cpp_cam_types=[
                         f"sym::{cls.__name__}<{scalar}>"
-                        for cls in DEFAULT_CAM_TYPES
+                        for cls in sf.CAM_TYPES
                         for scalar in data["scalar_types"]
                     ],
                     fully_implemented_cpp_cam_types=[
                         f"sym::{cls.__name__}<{scalar}>"
-                        for cls in DEFAULT_CAM_TYPES
+                        for cls in sf.CAM_TYPES
                         for scalar in data["scalar_types"]
                         if supports_camera_ray_from_pixel(cls)
                     ],
                 ),
                 config=config.render_template_config,
             )
+
+        templates.add(
+            template_path=Path("cam_package/all_cam_types.h.jinja"),
+            data=Codegen.common_data(),
+            config=config.render_template_config,
+            output_path=cam_package_dir / "all_cam_types.h",
+        )
     else:
         raise NotImplementedError(f'Unknown config type: "{config}"')
 

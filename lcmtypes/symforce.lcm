@@ -74,12 +74,9 @@ struct linearization_dense_key_helper_t {
   // For each column of this key's block in the factor jacobian, the sparse storage valuePtr array
   // offsets
   int32_t jacobian_storage_col_starts[];
-  // For each other key (from 0 to this key's index), the sparse storage valuePtr array offsets
-  // NOTE(hayk): Currently num_other_cols is not constant in actual use - this type likely
-  // can't be serialized right now. Perhaps try to store a flatter structure of slices.
-  int32_t num_other_keys;
-  int32_t num_other_cols;
-  int32_t hessian_storage_col_starts[num_other_keys][num_other_cols];
+  // For this key, then each other key (from 0 to this key's index); and each column in that key;
+  // the sparse storage valuePtr array offsets
+  int32_t hessian_storage_col_starts[];
 };
 
 // Index information for a linearized factor into the combined problem
@@ -117,21 +114,65 @@ struct linearization_sparse_factor_helper_t {
   int32_t hessian_index_map[];
 };
 
+enum lambda_update_type_t {
+  INVALID = 0,
+  // Multiply lambda by a constant based on whether each step was accepted
+  STATIC = 1,
+  // Change lambda intelligently based on the gain ratio, instead of just multiplying by a constant.
+  //
+  // This uses the update rule proposed in "DAMPING PARAMETER IN MARQUARDT’S METHOD", page 10:
+  // https://www.imm.dtu.dk/documents/ftp/tr99/tr05_99.pdf.
+  //
+  // This works better for some problems, for example the "Bundle Adjustment in the Large" problems.
+  // At least with the recommended defaults for dynamic_lambda_update_params, it does not reduce
+  // lambda as aggressively as the static update defaults, so in cases where the problem is very
+  // quadratic at the minimum it does not converge as quickly.
+  DYNAMIC = 2,
+};
+
 // Parameters for the Optimizer
 struct optimizer_params_t {
   // Print information for every iteration?
   boolean verbose;
 
+  // Whether the optimizer should record debugging stats such as the optimized values, residual,
+  // jacobian, etc. computed at each iteration of the optimization.
+  boolean debug_stats;
+  // Check derivatives for consistency.  This computes the numerical jacobian of the residual, and
+  // verifies that it matches the jacobian computed by the linearization function.  It also verifies
+  // that the Hessian and RHS computed by the linearization function match J^T * J and J^T * b
+  boolean check_derivatives;
+  // Whether the optimizer should compute jacobians.  Required for check_derivatives, and for
+  // computing linear error at each step.
+  boolean include_jacobians;
+  // If true, will perform additional sanity checks while optimizing which may be expensive.  This
+  // uses additional compute but not additional memory except for logging.
+  boolean debug_checks;
+
   // Damping value (lambda) on the first iteration of the LM loop
   double initial_lambda;
-  // Factor greater than one to multiply by lambda
-  double lambda_up_factor;
-  // Factor less than one to multiply by lambda
-  double lambda_down_factor;
   // Smallest allowed value for lambda
   double lambda_lower_bound;
   // Largest allowed value for lambda
   double lambda_upper_bound;
+
+  // Method for updating lambda, see lambda_update_type_t
+  lambda_update_type_t lambda_update_type;
+
+  // [Used if lambda_update_type == STATIC] Factor greater than one to multiply by lambda
+  double lambda_up_factor;
+  // [Used if lambda_update_type == STATIC] Factor less than one to multiply by lambda
+  double lambda_down_factor;
+
+  // [Used if lambda_update_type == DYNAMIC] Lambda update parameter beta.  This is the initial
+  // value of nu, and scales the update for lambda.  Recommended value is 2
+  double dynamic_lambda_update_beta;
+  // [Used if lambda_update_type == DYNAMIC] Lambda update parameter gamma.  This is the factor by
+  // which lambda is reduced when the gain is >= 1.  Recommended value is 3
+  double dynamic_lambda_update_gamma;
+  // [Used if lambda_update_type == DYNAMIC] Exponent in the power law for the updated lambda,
+  // should be an odd positive integer. Recommended value is 3
+  int32_t dynamic_lambda_update_p;
 
   // Damp the Hessian adaptively based on the values on its diagonal?
   boolean use_diagonal_damping;
@@ -148,9 +189,12 @@ struct optimizer_params_t {
 
   // Max number of LM iterations to run in an optimization
   int32_t iterations;
-  // Early exit from the optimization if the relative reduction is positive and
+  // Early exit from the optimization if the absolute value of the relative reduction is
   // less than this amount
   double early_exit_min_reduction;
+  // Early exit from the optimization if the error (i.e. 0.5 * residual.dot(residual)) is less than
+  // this amount
+  double early_exit_min_absolute_error;
   // Allow uphill movements in the optimization?
   boolean enable_bold_updates;
 }
@@ -158,13 +202,27 @@ struct optimizer_params_t {
 // Additional parameters for the GNCOptimizer
 struct optimizer_gnc_params_t {
   // The convexity param is stepped each time we early-exit with this threshold.
-  float gnc_update_min_reduction;
+  double gnc_update_min_reduction;
+
   // Initial mu value.
-  float mu_initial;
+  double mu_initial;
+
   // Amount to change mu each step.
-  float mu_step;
-  // Maximum mu value.
-  float mu_max;
+  //
+  // After the previous GNC step has converged, the value of gnc_mu_key will be set to
+  // min(mu_previous + mu_step, mu_max).
+  //
+  // If mu_step <= 0, then the GncOptimizer will behave like an Optimizer; it will iterate to
+  // convergence once, with the value of gnc_mu_key set to mu_initial and convergence threshold
+  // early_exit_min_reduction.
+  double mu_step;
+
+  // Maximum mu value
+  //
+  // If mu_initial >= mu_max, the GncOptimizer will behave like an Optimizer; it will iterate to
+  // convergence once, with the value of gnc_mu_key set to mu_initial and convergence threshold
+  // early_exit_min_reduction.
+  double mu_max;
 }
 
 // Debug stats for a single iteration of a Levenberg Marquardt optimization
@@ -174,30 +232,33 @@ struct optimization_iteration_t {
   int16_t iteration;
 
   // Value of lambda at this iteration
-  float current_lambda;
+  double current_lambda;
   // Error after the iteration, using the linearized cost
-  float new_error_linear;
+  double new_error_linear;
   // Error after the iteration, using the full nonlinear cost function
-  float new_error;
+  double new_error;
   // Relative reduction in error between the initial and updated states for
   // this iteration
-  float relative_reduction;
+  double relative_reduction;
 
   // Was the update accepted?
   boolean update_accepted;
   // Angle between previous update and current update
-  float update_angle_change;
+  double update_angle_change;
 
-  // The values, residual, and jacobian are only populated when debug_stats is true,
+  // The update, values, residual, and jacobian are only populated when debug_stats is true,
   // otherwise they are size 0
+
+  // The update at this step
+  eigen_lcm.VectorXd update;
 
   // The Values at this step
   values_t values;
 
   // The problem residual
-  eigen_lcm.VectorXf residual;
+  eigen_lcm.VectorXd residual;
   // The problem jacobian exactly if dense, or as CSC format sparse data column vector if sparse
-  eigen_lcm.MatrixXf jacobian_values;
+  eigen_lcm.MatrixXd jacobian_values;
 }
 
 // The structure of a sparse matrix in CSC format, not including the numerical values
@@ -206,13 +267,35 @@ struct optimization_iteration_t {
 // In the comments below, assume an M x N matrix with nnz nonzeros
 struct sparse_matrix_structure_t {
   // The row for each nonzero entry in the matrix
-  eigen_lcm.VectorXi row_indices; // size nnz
+  eigen_lcm.VectorXi row_indices;  // size nnz
 
   // The index into row_indices (and the values) of the start of each column
-  eigen_lcm.VectorXi column_pointers; // size N
+  eigen_lcm.VectorXi column_pointers;  // size N
 
   // The shape (M, N) of the sparse matrix
   int64_t shape[2];
+}
+#protobuf
+enum optimization_status_t {
+  // Uninitialized enum value
+  INVALID = 0,
+  // The optimization converged successfully
+  SUCCESS = 1,
+  // We hit the iteration limit before converging
+  HIT_ITERATION_LIMIT = 2,
+  // The solver failed to converge for some reason (other than hitting the iteration limit)
+  FAILED = 3,
+}
+
+#protobuf
+enum levenberg_marquardt_solver_failure_reason_t : int32_t {
+  // Uninitialized enum value
+  INVALID = 0,
+  // We could not increase lambda high enough to make progress
+  LAMBDA_OUT_OF_BOUNDS = 1,
+  // The initial error was not finite (either NaN or Inf)
+  INITIAL_ERROR_NOT_FINITE = 2,
+
 }
 
 // Debug stats for a full optimization run
@@ -222,16 +305,58 @@ struct optimization_stats_t {
   // Index into iterations of the best iteration (containing the optimal Values)
   int32_t best_index;
 
-  // Did the optimization early exit? (either because it converged, or because it could not find a
-  // good step)
-  boolean early_exited;
+  // What was the result of the optimization? (did it converge, fail, etc.)
+  optimization_status_t status;
 
-  // The sparsity pattern of the jacobian, filled out if debug_stats=true
+  // If status == FAILED, why?  This should be cast to the Optimizer::FailureReason enum
+  // for the nonlinear solver you used.
+  int32_t failure_reason;
+
+  /// The sparsity pattern of the problem jacobian
+  ///
+  /// Only filled if Optimizer created with debug_stats = true and include_jacobians = true,
+  /// otherwise default constructed.
+  ///
+  /// If using a dense linearization, only the shape field will be filled.
   sparse_matrix_structure_t jacobian_sparsity;
 
-  // The ordering used for the linear solver, filled out if debug_stats=true
+  /// The permutation used by the linear solver
+  ///
+  /// Only filled if using an Optimizer created with debug_stats = true and a linear solver that
+  /// exposes Permutation() (such as the default SparseCholeskySolver).  Otherwise, will be default
+  /// constructed.
   eigen_lcm.VectorXi linear_solver_ordering;
 
-  // The sparsity pattern of the cholesky factor L, filled out if debug_stats=true
+  /// The sparsity pattern of the cholesky factor L
+  ///
+  /// Only filled if using an Optimizer created with debug_stats = true and a linear solver that
+  /// exposes L() (such as the default SparseCholeskySolver).  Otherwise, will be default
+  /// constructed.
   sparse_matrix_structure_t cholesky_factor_sparsity;
+}
+
+struct imu_biases_t {
+  eigen_lcm.Vector3d accel_bias;
+  eigen_lcm.Vector3d gyro_bias;
+}
+
+struct imu_integrated_measurement_delta_t {
+  double Dt;
+  eigen_lcm.Quaterniond DR;
+  eigen_lcm.Vector3d Dv;
+  eigen_lcm.Vector3d Dp;
+}
+
+struct imu_integrated_measurement_derivatives_t {
+  eigen_lcm.Matrix3d DR_D_gyro_bias;
+  eigen_lcm.Matrix3d Dv_D_accel_bias;
+  eigen_lcm.Matrix3d Dv_D_gyro_bias;
+  eigen_lcm.Matrix3d Dp_D_accel_bias;
+  eigen_lcm.Matrix3d Dp_D_gyro_bias;
+}
+
+struct imu_integrated_measurement_t {
+  imu_biases_t biases;
+  imu_integrated_measurement_delta_t delta;
+  imu_integrated_measurement_derivatives_t derivatives;
 }

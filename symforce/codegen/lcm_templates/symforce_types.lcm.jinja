@@ -14,14 +14,21 @@ enum type_t : int32_t {
   SCALAR = 1,
 
   // Geometry types
-  ROT2 = 2,
-  ROT3 = 3,
-  POSE2 = 4,
-  POSE3 = 5,
-  UNIT3 = 7,
+  {% set k = namespace(value=2) %}
+  {% for cls in sf.GEO_TYPES %}
+  {{ python_util.camelcase_to_screaming_snakecase(cls.__name__) }} = {{ k.value }},
+  {% set k.value = k.value + 1 %}
+  {% if k.value == 6 or k.value == 8 %}
+    {# Skip 6, used for DATABUFFER, and 8, used for PREINTEGRATED_IMU_MEASUREMENTS #}
+    {% set k.value = k.value + 1 %}
+  {% endif %}
+  {% endfor %}
 
   // DataBuffer
   DATABUFFER = 6,
+
+  // Preintegrated IMU measurements
+  PREINTEGRATED_IMU_MEASUREMENTS = 8,
 
   // Vector types, dynamic and fixed
   VECTORX = 10,
@@ -40,8 +47,8 @@ enum type_t : int32_t {
   {% endfor %}
 
   // Camera calibrations
-  {% for name in camera_cal_class_names %}
-  {{ python_util.camelcase_to_screaming_snakecase(name) }} = {{ k.value }},
+  {% for cls in sf.CAM_TYPES %}
+  {{ python_util.camelcase_to_screaming_snakecase(cls.__name__) }} = {{ k.value }},
   {% set k.value = k.value + 1 %}
   {% endfor %}
 };

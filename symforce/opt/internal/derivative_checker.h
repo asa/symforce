@@ -5,8 +5,6 @@
 
 #include <spdlog/spdlog.h>
 
-#include "../linearization.h"
-#include "../linearizer.h"
 #include "../util.h"
 #include "../values.h"
 
@@ -28,12 +26,13 @@ namespace internal {
  * Returns:
  *   true if `linearization` and numerical derivatives match
  */
-template <typename Scalar>
-bool CheckDerivatives(Linearizer<Scalar>& linearizer, const Values<Scalar>& values,
-                      const index_t& index, const Linearization<Scalar>& linearization,
+template <typename Scalar, typename LinearizerType>
+bool CheckDerivatives(LinearizerType& linearizer, const Values<Scalar>& values,
+                      const index_t& index,
+                      const typename LinearizerType::LinearizationType& linearization,
                       const Scalar epsilon, const bool verbose = true) {
   // Make a copy of the linearization that we can relinearize into
-  Linearization<Scalar> perturbed_linearization = linearization;
+  typename LinearizerType::LinearizationType perturbed_linearization = linearization;
 
   bool success = true;
 
@@ -53,8 +52,8 @@ bool CheckDerivatives(Linearizer<Scalar>& linearizer, const Values<Scalar>& valu
         wrapped_residual, VectorX<Scalar>::Zero(linearization.jacobian.cols()).eval(), epsilon,
         std::sqrt(epsilon));
 
-    const bool jacobian_matches =
-        numerical_jacobian.isApprox(MatrixX<Scalar>(linearization.jacobian), std::sqrt(epsilon));
+    const bool jacobian_matches = numerical_jacobian.isApprox(
+        MatrixX<Scalar>(linearization.jacobian), 10 * std::sqrt(epsilon));
 
     if (!jacobian_matches) {
       if (verbose) {

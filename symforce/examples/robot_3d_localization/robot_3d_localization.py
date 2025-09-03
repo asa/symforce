@@ -239,10 +239,14 @@ def main() -> None:
     optimizer = Optimizer(
         factors=factors,
         optimized_keys=optimized_keys,
-        # Return problem stats for every iteration
-        debug_stats=True,
         # Customize optimizer behavior
-        params=Optimizer.Params(verbose=True, initial_lambda=1e4, lambda_down_factor=1 / 2.0),
+        params=Optimizer.Params(
+            verbose=True,
+            initial_lambda=1e4,
+            lambda_down_factor=1 / 2.0,
+            # Return problem stats for every iteration
+            debug_stats=True,
+        ),
     )
 
     # Solve and return the result
@@ -251,6 +255,7 @@ def main() -> None:
     # Print some values
     print(f"Num iterations: {len(result.iterations) - 1}")
     print(f"Final error: {result.error():.6f}")
+    print(f"Status: {result.status}")
 
     for i, pose in enumerate(result.optimized_values["world_T_body"]):
         print(f"world_T_body {i}: t = {pose.position()}, R = {pose.rotation().to_tangent()}")
@@ -280,7 +285,7 @@ from symforce.codegen import template_util
 from symforce.codegen import values_codegen
 
 
-def build_codegen_object(num_poses: int, config: CodegenConfig = None) -> Codegen:
+def build_codegen_object(num_poses: int, config: T.Optional[CodegenConfig] = None) -> Codegen:
     """
     Create Codegen object for the linearization function
     """
@@ -338,7 +343,9 @@ def build_codegen_object(num_poses: int, config: CodegenConfig = None) -> Codege
     return linearization_func
 
 
-def generate_matching_residual_code(output_dir: Path = None, print_code: bool = False) -> None:
+def generate_matching_residual_code(
+    output_dir: T.Optional[Path] = None, print_code: bool = False
+) -> None:
     """
     Generate C++ code for the matching residual function. A C++ Factor can then be
     constructed and optimized from this function without any Python dependency.
@@ -363,7 +370,9 @@ def generate_matching_residual_code(output_dir: Path = None, print_code: bool = 
         shutil.rmtree(generated_paths.output_dir)
 
 
-def generate_odometry_residual_code(output_dir: Path = None, print_code: bool = False) -> None:
+def generate_odometry_residual_code(
+    output_dir: T.Optional[Path] = None, print_code: bool = False
+) -> None:
     """
     Generate C++ code for the odometry residual function. A C++ Factor can then be
     constructed and optimized from this function without any Python dependency.

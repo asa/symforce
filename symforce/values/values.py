@@ -32,7 +32,8 @@ class Values(T.MutableMapping[str, T.Any]):
     Includes standard operator[] access to keys and values.
 
     Attributes:
-        attr: Access with dot notation, such as `v.attr.states.x0` instead of `v['states.x0']`.
+        attr: Access with dot notation, such as ``v.attr.states.x0`` instead of ``v['states.x0']``.
+        dict: Underlying storage - ordered dictionary
     """
 
     def __init__(self, _dict: T.Optional[T.Dict[str, T.Any]] = None, **kwargs: T.Any) -> None:
@@ -79,11 +80,11 @@ class Values(T.MutableMapping[str, T.Any]):
 
     def items(self) -> T.ItemsView[str, T.Any]:
         """
-        An object providng a view on contained key/value pairs.
+        An object providing a view on contained key/value pairs.
         """
         return self.dict.items()
 
-    def get(self, key: str, default: T.Any = None) -> T.Any:
+    def get(self, key: str, default: T.Optional[T.Any] = None) -> T.Any:
         """
         Return the value for key if key is in the dictionary, else default.
 
@@ -100,7 +101,7 @@ class Values(T.MutableMapping[str, T.Any]):
         """
         Returns a deepcopy of this Values.
 
-        Use copy.deepcopy to call.
+        Use ``copy.deepcopy`` to call.
         """
         return self.from_storage(self.to_storage())
 
@@ -139,13 +140,12 @@ class Values(T.MutableMapping[str, T.Any]):
         """
         Builds an index from a list of key/value pairs of objects. This function
         can be called recursively either for the items of a Values object or for the
-        items of a list (using e.g. zip(my_keys, my_list), where my_keys are some
-        arbitrary names for each element in my_list)
+        items of a list (using e.g. ``zip(my_keys, my_list)``, where ``my_keys`` are some
+        arbitrary names for each element in ``my_list``)
         """
         offset = 0
-        index_dict = collections.OrderedDict()
+        index_dict = {}
         for name, value in items:
-
             entry_helper = lambda datatype=type(
                 value
             ), shape=None, item_index=None, curr_offset=offset, curr_value=value: IndexEntry(
@@ -167,10 +167,17 @@ class Values(T.MutableMapping[str, T.Any]):
             elif isinstance(value, (sf.Expr, sf.Symbol, int, float)):
                 entry = entry_helper(datatype=sf.Scalar)
             elif isinstance(value, (list, tuple)):
-                assert all(
-                    type(v) == type(value[0])  # pylint: disable=unidiomatic-typecheck
-                    for v in value
-                ) or all(typing_util.scalar_like(v) for v in value)
+                if not (
+                    all(
+                        type(v) == type(value[0])  # noqa: E721
+                        for v in value
+                    )
+                    or all(typing_util.scalar_like(v) for v in value)
+                ):
+                    raise TypeError(
+                        "A list/tuple in a Values object should not contain different types. "
+                        f'Types in list "{name}" are {set(type(v) for v in value)}'
+                    )
                 name_list = [f"{name}_{i}" for i in range(len(value))]
                 item_index = Values.get_index_from_items(zip(name_list, value))
                 entry = entry_helper(item_index=item_index)
@@ -219,14 +226,14 @@ class Values(T.MutableMapping[str, T.Any]):
     def items_recursive(self) -> T.List[T.Tuple[str, T.Any]]:
         """
         Returns a flat list of key/value pairs for every element in this object in insertion order
-        of highest level dot seperated key.
+        of highest level dot separated key.
         """
         return [(key[len(".") :], value) for key, value in Values._items_recursive(self)]
 
     def keys_recursive(self) -> T.List[str]:
         """
         Returns a flat list of unique keys for every element in this object in insertion order
-        of highest level dot seperated key.
+        of highest level dot separated key.
         """
         items = self.items_recursive()
         if len(items) == 0:
@@ -236,7 +243,7 @@ class Values(T.MutableMapping[str, T.Any]):
     def values_recursive(self) -> T.List[T.Any]:
         """
         Returns a flat list of elements stored in this Values object in insertion order
-        of highest level dot seperated key.
+        of highest level dot separated key.
         """
         items = self.items_recursive()
         if len(items) == 0:
@@ -246,15 +253,15 @@ class Values(T.MutableMapping[str, T.Any]):
     def subkeys_recursive(self) -> T.List[str]:
         """
         Returns a flat list of subkeys for every element in this object in insertion order
-        of highest level dot seperated key. Unlike keys_recursive, subkeys_recursive does not
-        return dot-separated keys.
+        of highest level dot separated key. Unlike :meth:`keys_recursive`, ``subkeys_recursive``
+        does not return dot-separated keys.
         """
         return [k.split(".")[-1] for k in self.keys_recursive()]
 
     def scalar_keys_recursive(self) -> T.List[str]:
         """
         Returns a flat list of keys to each scalar in this object in insertion order
-        of highest level dot seperated key.
+        of highest level dot separated key.
         """
         flat_scalar_keys: T.List[str] = []
         for key, value in self.items_recursive():
@@ -309,7 +316,7 @@ class Values(T.MutableMapping[str, T.Any]):
             elif issubclass(datatype, geo.Matrix):
                 assert entry.shape is not None
                 # NOTE(brad): Don't pass entry.shape directly because it has type T.Tuple[int, ...]
-                # (to accomadate ndarray shapes) whereas a T.Tuple[int, int] is expected. mypy does
+                # (to accommodate ndarray shapes) whereas a T.Tuple[int, int] is expected. mypy does
                 # not accept asserting on the length of the tuple, so writing to an intermediate
                 # tuple is a work around.
                 (rows, cols) = entry.shape
@@ -331,7 +338,7 @@ class Values(T.MutableMapping[str, T.Any]):
     def from_storage(self, elements: T.List[sf.Scalar]) -> Values:
         """
         Create a Values object with the same structure as self but constructed
-        from a flat list representation. Opposite of `.to_storage()`.
+        from a flat list representation. Opposite of :meth:`to_storage`.
         """
         assert len(elements) == self.storage_dim()
         return Values.from_storage_index(elements, self.index())
@@ -340,7 +347,7 @@ class Values(T.MutableMapping[str, T.Any]):
         """
         Create a Values object with the same structure as self, where each element
         is a symbolic element with the given name prefix. Kwargs are forwarded
-        to sf.Symbol (for example, sympy assumptions).
+        to :class:`sf.Symbol <symforce.symbolic.Symbol>` (for example, sympy assumptions).
         """
         symbolic_values = Values()
         for k, v in self.items():
@@ -413,7 +420,7 @@ class Values(T.MutableMapping[str, T.Any]):
 
     def to_tangent(self, epsilon: sf.Scalar = sf.epsilon()) -> T.List[sf.Scalar]:
         """
-        Returns flat vector representing concatentated tangent spaces of each element.
+        Returns flat vector representing concatenated tangent spaces of each element.
         """
         vec = []
         for v in self.values():
@@ -422,7 +429,7 @@ class Values(T.MutableMapping[str, T.Any]):
 
     def retract(self, vec: T.List[sf.Scalar], epsilon: sf.Scalar = sf.epsilon()) -> Values:
         """
-        Apply a pertubation vec in the concatenated tangent spaces of each element. Often used in
+        Apply a perturbation vec in the concatenated tangent spaces of each element. Often used in
         optimization to update nonlinear values from an update step in the tangent space.
 
         NOTE(aaron): We have to override the default LieGroup implementation of retract because not
@@ -438,7 +445,7 @@ class Values(T.MutableMapping[str, T.Any]):
 
     def local_coordinates(self, b: Values, epsilon: sf.Scalar = sf.epsilon()) -> T.List[sf.Scalar]:
         """
-        Computes a pertubation in the combined tangent space around self to produce b. Often used
+        Computes a perturbation in the combined tangent space around self to produce b. Often used
         in optimization to minimize the distance between two group elements.
 
         NOTE(aaron): We have to override the default LieGroup implementation of local_coordinates
@@ -450,7 +457,7 @@ class Values(T.MutableMapping[str, T.Any]):
             vec.extend(ops.LieGroupOps.local_coordinates(va, vb, epsilon))
         return vec
 
-    def storage_D_tangent(self) -> geo.Matrix:
+    def storage_D_tangent(self, epsilon: sf.Scalar = sf.epsilon()) -> geo.Matrix:
         """
         Returns a matrix with dimensions (storage_dim x tangent_dim) which represents
         the jacobian of the flat storage space of self wrt to the flat tangent space of
@@ -463,14 +470,14 @@ class Values(T.MutableMapping[str, T.Any]):
         for v in self.values():
             s_dim = ops.StorageOps.storage_dim(v)
             t_dim = ops.LieGroupOps.tangent_dim(v)
-            storage_D_tangent[
-                s_inx : s_inx + s_dim, t_inx : t_inx + t_dim
-            ] = ops.LieGroupOps.storage_D_tangent(v)
+            storage_D_tangent[s_inx : s_inx + s_dim, t_inx : t_inx + t_dim] = (
+                ops.LieGroupOps.storage_D_tangent(v, epsilon)
+            )
             s_inx += s_dim
             t_inx += t_dim
         return storage_D_tangent
 
-    def tangent_D_storage(self) -> geo.Matrix:
+    def tangent_D_storage(self, epsilon: sf.Scalar = sf.epsilon()) -> geo.Matrix:
         """
         Returns a matrix with dimensions (tangent_dim x storage_dim) which represents
         the jacobian of the flat tangent space of self wrt to the flat storage space of
@@ -483,9 +490,9 @@ class Values(T.MutableMapping[str, T.Any]):
         for v in self.values():
             t_dim = ops.LieGroupOps.tangent_dim(v)
             s_dim = ops.StorageOps.storage_dim(v)
-            tangent_D_storage[
-                t_inx : t_inx + t_dim, s_inx : s_inx + s_dim
-            ] = ops.LieGroupOps.tangent_D_storage(v)
+            tangent_D_storage[t_inx : t_inx + t_dim, s_inx : s_inx + s_dim] = (
+                ops.LieGroupOps.tangent_D_storage(v, epsilon)
+            )
             t_inx += t_dim
             s_inx += s_dim
         return tangent_D_storage
@@ -599,7 +606,7 @@ class Values(T.MutableMapping[str, T.Any]):
         indices: T.Sequence[int],
         create: bool = False,
         should_set: bool = False,
-        set_target: T.Any = None,
+        set_target: T.Optional[T.Any] = None,
     ) -> T.Any:
         """
         Recurse into a nested sequence, using multi-dimensional `indices`, and return the entry in
@@ -682,9 +689,9 @@ class Values(T.MutableMapping[str, T.Any]):
 
         This means that intermediate Values objects along the path will be created.  Intermediate
         sequences (lists) will be created or appended to only if the index requested is no more than
-        1 past the current length - e.g. `values['foo[0]'] = 5` will create the `foo` list with one
-        entry (5) if the `foo` list did not previously exist, and `values['foo[1]'] = 6` will append
-        6 to the `foo` list if it previosly had length 1.
+        1 past the current length - e.g. ``values['foo[0]'] = 5`` will create the ``foo`` list with
+        one entry (5) if the ``foo`` list did not previously exist, and ``values['foo[1]'] = 6``
+        will append 6 to the ``foo`` list if it previously had length 1.
         """
         values, key_name, indices = self._get_subvalues_key_and_indices(key, create=True)
         if not indices:
@@ -749,7 +756,7 @@ class Values(T.MutableMapping[str, T.Any]):
     def add(self, value: T.Union[str, sf.Symbol], **kwargs: T.Any) -> None:
         """
         Add a symbol into the values using its given name, either a Symbol or a string.
-        Allows avoiding duplication of the sort `v['foo'] = sf.Symbol('foo')`.
+        Allows avoiding duplication of the sort ``v['foo'] = sf.Symbol('foo')``.
 
         Args:
             value (Symbol or str):
@@ -800,7 +807,6 @@ class Values(T.MutableMapping[str, T.Any]):
         if isinstance(value, Values):
             return Values({k: Values._apply_to_leaves(v, func) for k, v in value.items()})
         elif isinstance(value, (list, tuple)):
-            # pylint: disable=too-many-function-args
             return type(value)([Values._apply_to_leaves(v, func) for v in value])
         elif isinstance(value, T.Dataclass):
             return Values(
@@ -824,6 +830,21 @@ class Values(T.MutableMapping[str, T.Any]):
         Recursively convert dataclasses to Values
         """
         return self.apply_to_leaves(lambda x: x)
+
+    @staticmethod
+    def from_dataclass(d: T.Dataclass) -> Values:
+        """
+        Convert a dataclass to a Values object.
+        """
+        return Values(
+            {field.name: getattr(d, field.name) for field in dataclasses.fields(d)}
+        ).dataclasses_to_values()
+
+    def to_dataclass(self, d: T.Type[T.Dataclass]) -> T.Dataclass:
+        """
+        Convert this Values object to a dataclass.
+        """
+        return ops.StorageOps.from_storage(d, self.to_storage())
 
     def to_numerical(self) -> Values:
         """
@@ -858,7 +879,7 @@ class Values(T.MutableMapping[str, T.Any]):
     def to_dict(self) -> T.Dict[str, T.Any]:
         """
         Converts this Values object and any Values or Dataclass objects contained within it to dict
-        objects. This is different from self.dict because self.dict can have leaves which are
+        objects. This is different from :attr:`dict` because :attr:`dict` can have leaves which are
         Values objects, whereas the dict returned by this function recursively converts all Values
         and Dataclass objects into dicts.
         """
@@ -867,7 +888,6 @@ class Values(T.MutableMapping[str, T.Any]):
             if isinstance(value, Values):
                 return {k: _to_dict_recursive(v) for k, v in value.items()}
             elif isinstance(value, (list, tuple)):
-                # pylint: disable=too-many-function-args
                 return type(value)(_to_dict_recursive(v) for v in value)
             elif isinstance(value, T.Dataclass):
                 return {

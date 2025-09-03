@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
-#include "../lie_group_ops.h"
+#include <sym/ops/lie_group_ops.h>
 
 // Forward declare class, without including header
 // Note(brad): We can't include the class header here because the class header
@@ -35,8 +35,6 @@ struct LieGroupOps<Unit3<Scalar>> : public internal::LieGroupOpsBase<Unit3<Scala
 
   using TangentVec = Eigen::Matrix<Scalar, TangentDim(), 1>;
 
-  static T FromTangent(const TangentVec& vec, const Scalar epsilon);
-  static TangentVec ToTangent(const T& a, const Scalar epsilon);
   static T Retract(const T& a, const TangentVec& vec, const Scalar epsilon);
   static TangentVec LocalCoordinates(const T& a, const T& b, const Scalar epsilon);
   static T Interpolate(const T& a, const T& b, const Scalar alpha, const Scalar epsilon);

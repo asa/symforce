@@ -3,6 +3,8 @@
  * This source code is under the Apache 2.0 license found in the LICENSE file.
  * ---------------------------------------------------------------------------- */
 
+#pragma once
+
 #include "./assert.h"
 #include "./factor.h"
 #include "./internal/factor_utils.h"
@@ -40,7 +42,10 @@ Factor<Scalar> Factor<Scalar>::Jacobian(Functor&& func, const std::vector<Key>& 
   using Traits = function_traits<Functor>;
 
   SYM_ASSERT(keys_to_func.size() >= keys_to_optimize.size());
-  SYM_ASSERT(Traits::num_arguments == keys_to_func.size() + 2);
+  SYM_ASSERT(Traits::num_arguments == keys_to_func.size() + 2,
+             "Function takes {} arguments, but got {} keys_to_func; expected ({} + 2) == {}",
+             Traits::num_arguments, keys_to_func.size(), keys_to_func.size(),
+             keys_to_func.size() + 2);
 
   // Get matrix types from function signature
   using ResidualVec = typename std::remove_pointer_t<
@@ -72,10 +77,12 @@ Factor<Scalar> Factor<Scalar>::Jacobian(Functor&& func, const std::vector<Key>& 
   constexpr bool is_fixed = (M != Eigen::Dynamic) && (N != Eigen::Dynamic);
   static_assert((is_dynamic || is_fixed), "Matrices cannot be mixed fixed and dynamic.");
 
+  constexpr bool is_map = std::is_same_v<ResidualVec, Eigen::Map<Eigen::Matrix<Scalar, M, 1>>>;
+
   // Dispatch to either the dynamic size or fixed size implementations
-  return Factor<Scalar>(
-      internal::JacobianDispatcher<is_dynamic, is_sparse, Scalar>{}(std::forward<Functor>(func)),
-      keys_to_func, keys_to_optimize);
+  return Factor<Scalar>(internal::JacobianDispatcher<is_dynamic, is_sparse, is_map, Scalar>{}(
+                            std::forward<Functor>(func)),
+                        keys_to_func, keys_to_optimize);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -93,7 +100,10 @@ Factor<Scalar> Factor<Scalar>::Hessian(Functor&& func, const std::vector<Key>& k
   using Traits = function_traits<Functor>;
 
   SYM_ASSERT(keys_to_func.size() >= keys_to_optimize.size());
-  SYM_ASSERT(Traits::num_arguments == keys_to_func.size() + 4);
+  SYM_ASSERT(Traits::num_arguments == keys_to_func.size() + 4,
+             "Function takes {} arguments, but got {} keys_to_func; expected ({} + 4) == {}",
+             Traits::num_arguments, keys_to_func.size(), keys_to_func.size(),
+             keys_to_func.size() + 4);
 
   // Get matrix types from function signature
   using ResidualVec = typename internal::HessianFuncTypeHelper<Functor>::ResidualVec;
@@ -132,10 +142,13 @@ Factor<Scalar> Factor<Scalar>::Hessian(Functor&& func, const std::vector<Key>& k
   constexpr bool is_fixed = (M != Eigen::Dynamic) && (N != Eigen::Dynamic);
   static_assert((is_dynamic || is_fixed), "Matrices cannot be mixed fixed and dynamic.");
 
+  constexpr bool is_map = std::is_same_v<ResidualVec, Eigen::Map<Eigen::Matrix<Scalar, M, 1>>>;
+
   // Dispatch to either the dynamic size or fixed size implementations
-  return Factor<Scalar>(internal::HessianDispatcher<is_dynamic, jacobian_is_sparse, Scalar>{}(
-                            std::forward<Functor>(func)),
-                        keys_to_func, keys_to_optimize);
+  return Factor<Scalar>(
+      internal::HessianDispatcher<is_dynamic, jacobian_is_sparse, is_map, Scalar>{}(
+          std::forward<Functor>(func)),
+      keys_to_func, keys_to_optimize);
 }
 
 // ----------------------------------------------------------------------------

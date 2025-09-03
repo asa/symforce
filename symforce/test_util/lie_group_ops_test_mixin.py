@@ -10,6 +10,7 @@ import numpy as np
 import symforce.symbolic as sf
 from symforce.ops import LieGroupOps
 from symforce.ops import StorageOps
+from symforce.ops.interfaces.lie_group import LieGroup
 
 from .group_ops_test_mixin import GroupOpsTestMixin
 
@@ -28,12 +29,14 @@ class LieGroupOpsTestMixin(GroupOpsTestMixin):
     def test_lie_group_ops(self) -> None:
         """
         Tests:
-            tangent_dim
-            from_tangent
-            to_tangent
-            retract
-            local_coordinates
+
+        - tangent_dim
+        - from_tangent
+        - to_tangent
         """
+        if not self.VALID_GROUP:
+            raise unittest.SkipTest("This test only applies to valid group elements.")
+
         # Create an identity and non-identity element
         element = self.element()
         identity = LieGroupOps.identity(element)
@@ -67,6 +70,17 @@ class LieGroupOpsTestMixin(GroupOpsTestMixin):
         tangent_zero_actual = LieGroupOps.to_tangent(identity, epsilon=self.EPSILON)
         self.assertStorageNear(tangent_zero_actual, sf.M.zeros(dim, 1), places=7)
 
+    def test_manifold_ops(self) -> None:
+        """
+        Tests:
+
+        - retract
+        - local_coordinates
+        """
+        element = self.element()
+        dim = LieGroupOps.tangent_dim(element)
+        perturbation = list(np.random.normal(scale=0.1, size=(dim,)))
+
         # Test zero retraction
         element_actual = LieGroupOps.retract(element, [0] * dim, epsilon=self.EPSILON)
         self.assertStorageNear(element_actual, element, places=7)
@@ -88,35 +102,52 @@ class LieGroupOpsTestMixin(GroupOpsTestMixin):
     def test_manifold_ops_match_group_ops_definitions(self) -> None:
         """
         Tests:
-            retract(a, vec) = compose(a, from_tangent(vec))
-            local_coordinates(a, b) = to_tangent(between(a, b))
+
+        - retract(a, vec) = compose(a, from_tangent(vec))
+        - local_coordinates(a, b) = to_tangent(between(a, b))
         """
         if not self.MANIFOLD_IS_DEFINED_IN_TERMS_OF_GROUP_OPS:
             raise unittest.SkipTest(
-                "This object does not satisfy the constraints this test is evaluating"
+                "This object does not satisfy the constraint that manifold "
+                "ops are can be equivalently described in terms of group ops."
             )
 
         # Create a non-identity element and a perturbation
         element = self.element()
         dim = LieGroupOps.tangent_dim(element)
-        pertubation = list(np.random.normal(scale=0.1, size=(dim,)))
-        value = LieGroupOps.from_tangent(element, pertubation, epsilon=self.EPSILON)
+        perturbation = list(np.random.normal(scale=0.1, size=(dim,)))
+        value = LieGroupOps.from_tangent(element, perturbation, epsilon=self.EPSILON)
 
         # Test retraction behaves as expected (compose and from_tangent)
-        retracted_element = LieGroupOps.retract(element, pertubation, epsilon=self.EPSILON)
+        retracted_element = LieGroupOps.retract(element, perturbation, epsilon=self.EPSILON)
         self.assertStorageNear(retracted_element, LieGroupOps.compose(element, value), places=7)
 
         # Test local_coordinates behaves as expected (between and to_tangent)
-        retracted_element = LieGroupOps.retract(element, pertubation, epsilon=self.EPSILON)
-        pertubation_recovered = LieGroupOps.local_coordinates(
+        retracted_element = LieGroupOps.retract(element, perturbation, epsilon=self.EPSILON)
+        perturbation_recovered = LieGroupOps.local_coordinates(
             element, retracted_element, epsilon=self.EPSILON
         )
         diff_element = LieGroupOps.between(element, retracted_element)
         self.assertStorageNear(
             LieGroupOps.to_tangent(diff_element, epsilon=self.EPSILON),
-            pertubation_recovered,
+            perturbation_recovered,
             places=7,
         )
+
+    def test_jacobian(self) -> None:
+        symbolic_element = StorageOps.symbolic(self.element(), "e")
+        symbolic_perturbation = sf.M(LieGroupOps.tangent_dim(symbolic_element), 1).symbolic("p")
+        symbolic_retracted_element = LieGroupOps.retract(
+            symbolic_element, symbolic_perturbation.to_flat_list()
+        )
+        LieGroupOps.jacobian(symbolic_retracted_element, symbolic_perturbation, tangent_space=True)
+        LieGroupOps.jacobian(symbolic_retracted_element, symbolic_perturbation, tangent_space=False)
+
+        if isinstance(self.element(), (LieGroup, sf.Matrix)):
+            # These classes should also have a .jacobian instance method
+            # TODO(aaron): Should there be a separate test mixin for these classes?
+            symbolic_retracted_element.jacobian(symbolic_perturbation, tangent_space=True)
+            symbolic_retracted_element.jacobian(symbolic_perturbation, tangent_space=False)
 
     def test_storage_D_tangent(self) -> None:
         element = self.element()

@@ -510,7 +510,7 @@ class SymforceValuesTest(LieGroupOpsTestMixin, TestCase):
         self.assertEqual(v_tuple["pair"], v_after["pair"])
 
         x = sf.Symbol("x")
-        v_tuple["pair"] = (x, x ** 2)
+        v_tuple["pair"] = (x, x**2)
         v_after = Values.from_storage_index(v_tuple.to_storage(), v_tuple.index())
         self.assertEqual(v_tuple["pair"], v_after["pair"])
 
@@ -546,17 +546,14 @@ class SymforceValuesTest(LieGroupOpsTestMixin, TestCase):
         # To check handling of normal geo types
         v_geo = Values()
         with v_geo.scope("geo_types"):
-            for geo_type in [
-                sf.Rot2,
-                sf.Rot3,
-                sf.Pose2,
-                sf.Pose3,
-                sf.Unit3,
-                sf.Complex,
-                sf.Quaternion,
-                sf.DualQuaternion,
-            ]:
-                v_geo[geo_type.__name__] = ops.GroupOps.identity(geo_type)
+            for geo_type in sf.ALL_GEO_TYPES:
+                try:
+                    v_geo[geo_type.__name__] = ops.GroupOps.identity(geo_type)
+                except NotImplementedError as err:
+                    if hasattr(geo_type, "random"):
+                        v_geo[geo_type.__name__] = geo_type.random()
+                    else:
+                        raise ValueError(f"{geo_type.__name__} has no 'random' method") from err
 
         self.assertEqual(v_geo, Values.from_storage_index(v_geo.to_storage(), v_geo.index()))
 

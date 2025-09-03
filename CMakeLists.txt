@@ -3,14 +3,13 @@
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
 
-# NOTE(aaron): This is the minimum version for policy range support, not sure if we need newer;
-# certainly no newer than 3.15 required.  This will use NEW policies up to CMake 3.25; this should
-# be the maximum tested CMake version, matching dev_requirements.txt
-cmake_minimum_required(VERSION 3.12...3.25)
+# NOTE(aaron): This will use NEW policies up to CMake 4.0; this should
+# be the maximum tested CMake version, matching requirements/dev_py38.txt
+cmake_minimum_required(VERSION 3.19...4.0)
 
 project(symforce)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ==============================================================================
@@ -64,13 +63,22 @@ option(SYMFORCE_SKYMARSHAL_PRINTING
 )
 
 # ------------------------------------------------------------------------------
-# Misc
+# Build Customization
 
 option(SYMFORCE_BUILD_STATIC_LIBRARIES "Build libraries as static" OFF)
 
-set(SYMFORCE_COMPILE_OPTIONS -Wall;-Wextra;-Werror CACHE STRING
+set(SYMFORCE_COMPILE_OPTIONS -Wall;-Wextra CACHE STRING
   "Extra flags to pass to the compiler; defaults to enabling warnings"
 )
+
+option(SYMFORCE_NO_FAST_MATH "Don't automatically add -ffast-math to some targets" OFF)
+
+set(SYMFORCE_EIGEN_TARGET "Eigen3::Eigen" CACHE STRING
+  "Target to depend on for Eigen. Default is to find Eigen with find_package."
+)
+
+# ------------------------------------------------------------------------------
+# Misc
 
 set(SYMFORCE_PYTHON_OVERRIDE "" CACHE STRING
   "Python executable to use - if empty (the default), find python in the environment"
@@ -90,10 +98,6 @@ set(SYMENGINEPY_INSTALL_ENV "" CACHE STRING "Options for symenginepy install ste
 
 set(SYMFORCE_PY_EXTENSION_MODULE_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/pybind CACHE PATH
   "Location to place generated python extension modules"
-)
-
-set(SYMFORCE_EIGEN_TARGET "Eigen3::Eigen" CACHE STRING
-  "Target to depend on for Eigen. Default is to find Eigen with find_package."
 )
 
 # ==============================================================================
@@ -180,8 +184,8 @@ if(SYMFORCE_BUILD_BENCHMARKS OR SYMFORCE_BUILD_TESTS)
     function(add_catch)
       FetchContent_Declare(
         Catch2
-        URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.1.1.zip
-        URL_HASH SHA256=eec6c327cd9187c63bbaaa8486f715e31544000bf8876c0543e1181a2a52a5de
+        URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.4.0.zip
+        URL_HASH SHA256=cd175f5b7e62c29558d4c17d2b94325ee0ab6d0bf1a4b3d61bc8dbcc688ea3c2
       )
 
       FetchContent_MakeAvailable(Catch2)
@@ -226,35 +230,23 @@ else()
 
   add_custom_target(symforce_eigen_lcm_py ALL DEPENDS eigen_lcm_py)
 
-  # Get SymForce version
-  execute_process(
-    COMMAND ${SYMFORCE_PYTHON} -c "from _version import version; print(version, end='')"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/symforce
-    RESULT_VARIABLE STATUS
-    OUTPUT_VARIABLE SYMFORCE_VERSION
-    ERROR_VARIABLE SYMFORCE_VERSION_STDERR
-  )
-  if(STATUS AND NOT STATUS EQUAL 0)
-    message(FATAL_ERROR
-      "Failed getting symforce version with exit code ${STATUS} and output ${SYMFORCE_VERSION}, stderr ${SYMFORCE_VERSION_STDERR}"
-    )
-  endif()
-
   file(WRITE
-    ${CMAKE_CURRENT_BINARY_DIR}/lcmtypes/python2.7/setup.py
+    ${CMAKE_CURRENT_BINARY_DIR}/lcmtypes/python2.7/pyproject.toml
     "
-from setuptools import setup, find_packages
-setup(
-  name='lcmtypes',
-  version='${SYMFORCE_VERSION}',
-  description='lcmtype python bindings (installed by SymForce)',
-  long_description='lcmtype python bindings (installed by SymForce)',
-  author='Skydio, Inc',
-  author_email='hayk@skydio.com',
-  license='Apache 2.0',
-  packages=find_packages(),
-  zip_safe=False,
-)
+[build-system]
+requires = ['setuptools', 'setuptools-scm>=8']
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'lcmtypes'
+description='lcmtype python bindings (installed by SymForce)'
+authors = [{ name = 'Skydio, Inc.', email = 'hayk@skydio.com' }]
+license = { text = 'Apache 2.0' }
+requires-python = '>=3.5'
+dynamic = ['version']
+
+[tool.setuptools_scm]
+root = '../../..'
     "
   )
 endif()
@@ -275,6 +267,9 @@ add_library(
   ${SYMFORCE_GEN_HEADERS}
 )
 target_compile_options(symforce_gen PRIVATE ${SYMFORCE_COMPILE_OPTIONS})
+if(NOT SYMFORCE_NO_FAST_MATH)
+  target_compile_options(symforce_gen PRIVATE -ffast-math)
+endif()
 target_link_libraries(symforce_gen ${SYMFORCE_EIGEN_TARGET} symforce_lcmtypes_cpp)
 target_include_directories(
   symforce_gen
@@ -367,6 +362,8 @@ if(SYMFORCE_BUILD_SYMENGINE)
                -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
                -DCMAKE_POLICY_DEFAULT_CMP0074=NEW
                -DCMAKE_PREFIX_PATH=${EXTERNAL_PREFIX_PATH}
+               -DWITH_COTIRE=OFF
+               -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   )
 
   # ------------------------------------------------------------------------------
@@ -385,12 +382,14 @@ if(SYMFORCE_BUILD_SYMENGINE)
         --build-type=Release
         --symengine-dir ${SYMFORCE_SYMENGINE_INSTALL_PREFIX}/lib/
         --define CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+        --define CMAKE_POLICY_VERSION_MINIMUM=3.5
     INSTALL_COMMAND env ${SYMENGINEPY_INSTALL_ENV} ${SYMFORCE_PYTHON}
         ${PROJECT_SOURCE_DIR}/third_party/symenginepy/setup.py
         --verbose
         install
         --prefix ${SYMFORCE_SYMENGINE_INSTALL_PREFIX}
         --define CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+        --define CMAKE_POLICY_VERSION_MINIMUM=3.5
   )
 
   # Rebuild symengine[py] on changed files
@@ -400,9 +399,10 @@ if(SYMFORCE_BUILD_SYMENGINE)
     set(git_check_rulename ${project_name}_check_git_clean)
     add_custom_target(${git_check_rulename}
       COMMAND ${SYMFORCE_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rerun_if_needed.py
+                  --name ${project_name}
                   --path_to_check ${PROJECT_SOURCE_DIR}/third_party/${project_name}
                   --stamp_file ${git_stampfile}
-                  --cmake_stampdir="${cmake_stampdir}"
+                  --cmake_stampdir=${cmake_stampdir}
       )
 
     add_dependencies(${project_name} ${git_check_rulename})

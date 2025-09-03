@@ -4,7 +4,7 @@
 # Do NOT modify by hand.
 # -----------------------------------------------------------------------------
 
-# pylint: disable=too-many-locals,too-many-lines,too-many-statements,unused-argument,unused-import
+# ruff: noqa: F401, PLR0912, PLR0913, PLR0914, PLR0915, PLR0917, RUF100
 
 import math
 import typing as T
@@ -35,5 +35,5 @@ def buffer_func(buffer, a, b):
     # Intermediate terms (0)
 
     # Output terms
-    _result = a + b + buffer[int((-a + b) * (a + b))] + buffer[int(-(a ** 2) + b ** 2)]
+    _result = a + b + buffer[int((-a + b) * (a + b))] + buffer[int(-(a**2) + b**2)]
     return _result

@@ -12,7 +12,7 @@ include(FetchContent)
 # ------------------------------------------------------------------------------
 # fmtlib
 
-find_package(fmt QUIET)
+find_package(fmt 8...<9 QUIET)
 if (NOT fmt_FOUND)
   message(STATUS "fmt not found, adding with FetchContent")
   function(add_fmt)
@@ -28,13 +28,13 @@ if (NOT fmt_FOUND)
 
   add_fmt()
 else()
-  message(STATUS "fmt found")
+  message(STATUS "fmt found: ${fmt_VERSION}")
 endif()
 
 # ------------------------------------------------------------------------------
 # spdlog
 
-find_package(spdlog 1.9.0 QUIET)
+find_package(spdlog 1.9...<1.11 QUIET)
 if (NOT spdlog_FOUND)
   message(STATUS "spdlog not found, adding with FetchContent")
   function(add_spdlog)
@@ -51,28 +51,7 @@ if (NOT spdlog_FOUND)
 
   add_spdlog()
 else()
-  message(STATUS "spdlog found")
-endif()
-
-# ------------------------------------------------------------------------------
-# tl::optional
-
-find_package(tl-optional QUIET)
-if (NOT tl_optional_FOUND)
-  message(STATUS "tl::optional not found, adding with FetchContent")
-  function(add_tl_optional)
-    set(OPTIONAL_BUILD_TESTS OFF CACHE INTERNAL "tl::optional shouldn't build tests")
-    FetchContent_Declare(
-      tl_optional
-      URL https://github.com/TartanLlama/optional/archive/v1.1.0.zip
-      URL_HASH SHA256=a336bb10f51945369c1dd6dc6d2a7086602ab9cab52c98a7a6224bfd782bc0c7
-    )
-    FetchContent_MakeAvailable(tl_optional)
-  endfunction()
-
-  add_tl_optional()
-else()
-  message(STATUS "tl::optional found")
+  message(STATUS "spdlog found: ${spdlog_VERSION}")
 endif()
 
 # ------------------------------------------------------------------------------
@@ -80,6 +59,11 @@ endif()
 
 function(add_metis)
   set(CMAKE_POSITION_INDEPENDENT_CODE True)
+  # CMake 4.0 removed compatibility with CMake 3.5: https://cmake.org/cmake/help/v4.0/release/4.0.html#deprecated-and-removed-features
+  # See the note below on METIS versioning; newest GKlib at https://github.com/KarypisLab/GKlib does
+  # support newer CMake, but we'd need to make sure the memory bugs mentioned below are resolved to
+  # upgrade.  The current copy of GKlib only declares it supports CMake 2.8.
+  set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
   FetchContent_Declare(
     metis
     # METIS does not have releases recently.  Previously were using nearly the initial commit on
@@ -114,8 +98,8 @@ add_metis()
 # ------------------------------------------------------------------------------
 # symforce_cholesky
 
-file(GLOB SYMFORCE_CHOLESKY_SOURCES CONFIGURE_DEPENDS cholesky/*.cc)
-file(GLOB SYMFORCE_CHOLESKY_HEADERS CONFIGURE_DEPENDS cholesky/*.h cholesky/*.tcc)
+file(GLOB SYMFORCE_CHOLESKY_SOURCES CONFIGURE_DEPENDS sparse_cholesky/*.cc)
+file(GLOB SYMFORCE_CHOLESKY_HEADERS CONFIGURE_DEPENDS sparse_cholesky/*.h sparse_cholesky/*.tcc)
 add_library(
   symforce_cholesky
   ${SYMFORCE_LIBRARY_TYPE}
@@ -123,7 +107,11 @@ add_library(
   ${SYMFORCE_CHOLESKY_HEADERS}
 )
 target_compile_options(symforce_cholesky PRIVATE ${SYMFORCE_COMPILE_OPTIONS})
-target_link_libraries(symforce_cholesky metis ${SYMFORCE_EIGEN_TARGET})
+target_link_libraries(symforce_cholesky
+  fmt::fmt
+  metis
+  ${SYMFORCE_EIGEN_TARGET}
+)
 target_include_directories(symforce_cholesky PUBLIC ../..)
 
 # ------------------------------------------------------------------------------
@@ -143,7 +131,6 @@ target_link_libraries(symforce_opt
   symforce_cholesky
   fmt::fmt
   spdlog::spdlog
-  tl::optional
   ${SYMFORCE_EIGEN_TARGET}
 )
 

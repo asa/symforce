@@ -2,6 +2,7 @@
 # SymForce - Copyright 2022, Skydio, Inc.
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
+
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field
@@ -36,7 +37,7 @@ class RenderTemplateConfig:
     Arguments to template_util.render_template
 
     Args:
-        autoformat: Run a code formatter on the generated code
+        autoformat: Run a code formatter on the generated code.
         custom_preamble: An optional string to be prepended on the front of the rendered template
     """
 
@@ -44,8 +45,7 @@ class RenderTemplateConfig:
     custom_preamble: str = ""
 
 
-# TODO(hayk): This type ignore is fixed by https://github.com/python/mypy/pull/13398 in mypy 0.981
-@dataclass  # type: ignore[misc]
+@dataclass
 class CodegenConfig:
     """
     Base class for backend-specific arguments for code generation.
@@ -57,8 +57,10 @@ class CodegenConfig:
         use_eigen_types: Use eigen_lcm types for vectors instead of lists
         render_template_config: Configuration for template rendering, see RenderTemplateConfig for
                                 more information
-        cse_optimizations: Optimizations argument to pass to sf.cse
+        cse_optimizations: Optimizations argument to pass to :func:`sf.cse <symforce.symbolic.cse>`
         zero_epsilon_behavior: What should codegen do if a default epsilon is not set?
+        normalize_results: Should function outputs be explicitly projected onto the manifold before
+                           returning?
     """
 
     doc_comment_line_prefix: str
@@ -71,6 +73,7 @@ class CodegenConfig:
     zero_epsilon_behavior: ZeroEpsilonBehavior = field(
         default_factory=lambda: DEFAULT_ZERO_EPSILON_BEHAVIOR
     )
+    normalize_results: bool = True
 
     @classmethod
     @abstractmethod
@@ -123,7 +126,9 @@ class CodegenConfig:
     def format_matrix_accessor(self, key: str, i: int, j: int, *, shape: T.Tuple[int, int]) -> str:
         """
         Format accessor for 2D matrices.
-        Raises an index exception if either of the following is false:
+
+        Raises an index exception if either of the following is false::
+
             0 <= i < shape[0]
             0 <= j < shape[1]
         """
@@ -134,5 +139,15 @@ class CodegenConfig:
     def format_eigen_lcm_accessor(key: str, i: int) -> str:
         """
         Format accessor for eigen_lcm types.
+        """
+        pass
+
+    def update_template_data(self, data: T.Dict[str, T.Any]) -> None:
+        """
+        Derived classes may override this to customize the "template data" dict. This dict
+        is passed to jinja at code-generation time.
+
+        Args:
+            data: Dict passed by Codegen. The function should modify this in-place.
         """
         pass

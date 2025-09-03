@@ -16,8 +16,8 @@
 #include <iostream>
 #include <thread>
 
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
+#include <Eigen/Core>
+#include <Eigen/SparseCore>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <spdlog/spdlog.h>
@@ -50,10 +50,10 @@ TEMPLATE_TEST_CASE("sym_dynamic_linearize", "", double, float) {
       BuildDynamicFactors<Scalar>(kNumPoses, kNumLandmarks);
 
   sym::Optimizer<Scalar> optimizer(RobotLocalizationOptimizerParams(), factors,
-                                   sym::kDefaultEpsilon<Scalar>, "sym_dynamic_linearize");
+                                   "sym_dynamic_linearize");
 
   sym::Linearizer<Scalar>& linearizer = optimizer.Linearizer();
-  sym::Linearization<Scalar> linearization;
+  sym::SparseLinearization<Scalar> linearization;
 
   std::chrono::milliseconds timespan(100);
   std::this_thread::sleep_for(timespan);
@@ -77,9 +77,9 @@ TEMPLATE_TEST_CASE("sym_dynamic_iterate", "", double, float) {
       BuildDynamicFactors<Scalar>(kNumPoses, kNumLandmarks);
 
   sym::Optimizer<Scalar> optimizer(RobotLocalizationOptimizerParams(), factors,
-                                   sym::kDefaultEpsilon<Scalar>, "sym_dynamic_iterate");
+                                   "sym_dynamic_iterate");
 
-  sym::OptimizationStats<Scalar> stats;
+  typename sym::Optimizer<Scalar>::Stats stats;
 
   std::chrono::milliseconds timespan(100);
   std::this_thread::sleep_for(timespan);
@@ -103,10 +103,10 @@ TEMPLATE_TEST_CASE("sym_fixed_linearize", "", double, float) {
   const std::vector<sym::Factor<Scalar>> factors = {BuildFixedFactor<Scalar>()};
 
   sym::Optimizer<Scalar> optimizer(RobotLocalizationOptimizerParams(), factors,
-                                   sym::kDefaultEpsilon<Scalar>, "sym_fixed_linearize");
+                                   "sym_fixed_linearize");
 
   sym::Linearizer<Scalar>& linearizer = optimizer.Linearizer();
-  sym::Linearization<Scalar> linearization;
+  sym::SparseLinearization<Scalar> linearization;
 
   std::chrono::milliseconds timespan(100);
   std::this_thread::sleep_for(timespan);
@@ -129,9 +129,9 @@ TEMPLATE_TEST_CASE("sym_fixed_iterate", "", double, float) {
   const std::vector<sym::Factor<Scalar>> factors = {BuildFixedFactor<Scalar>()};
 
   sym::Optimizer<Scalar> optimizer(RobotLocalizationOptimizerParams(), factors,
-                                   sym::kDefaultEpsilon<Scalar>, "sym_fixed_iterate");
+                                   "sym_fixed_iterate");
 
-  sym::OptimizationStats<Scalar> stats;
+  typename sym::Optimizer<Scalar>::Stats stats;
 
   std::chrono::milliseconds timespan(100);
   std::this_thread::sleep_for(timespan);
@@ -154,7 +154,7 @@ TEST_CASE("gtsam_linearize") {
   // Initial values.
   Values initial;
   for (int i = 0; i < kNumPoses; ++i) {
-    initial.insert(i, Pose3::identity());
+    initial.insert(i, Pose3::Identity());
   }
 
   // Build optimizer
@@ -184,7 +184,7 @@ TEST_CASE("gtsam_iterate") {
   // Initial values.
   Values initial;
   for (int i = 0; i < kNumPoses; ++i) {
-    initial.insert(i, Pose3::identity());
+    initial.insert(i, Pose3::Identity());
   }
 
   // Build optimizer

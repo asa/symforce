@@ -3,17 +3,13 @@
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
 
-import copy
 import os
+import shutil
+import subprocess
 from pathlib import Path
 
-import black
-
-from symforce import python_util
 from symforce import typing as T
-
-# TODO(aaron): Put this in a pyproject.toml and fetch from there
-BLACK_FILE_MODE = black.FileMode(line_length=100)
+from symforce.python_util import find_ruff_bin
 
 
 def format_cpp(file_contents: str, filename: str) -> str:
@@ -21,17 +17,17 @@ def format_cpp(file_contents: str, filename: str) -> str:
     Autoformat a given C++ file using clang-format
 
     Args:
-        file_contents (str): The unformatted contents of the file
-        filename (str): A name that this file might have on disk; this does not have to be a real
-            path, it's only used for clang-format to find the correct style file (by traversing
-            upwards from this location) and to decide if an include is the corresponding .h file
-            for a .cc file that's being formatted (this affects the include order)
+        file_contents: The unformatted contents of the file
+        filename: A name that this file might have on disk; this does not have to be a real path,
+            it's only used for clang-format to find the correct style file (by traversing upwards
+            from this location) and to decide if an include is the corresponding .h file for a .cc
+            file that's being formatted (this affects the include order)
 
     Returns:
         formatted_file_contents (str): The contents of the file after formatting
     """
     try:
-        import clang_format  # type: ignore[import]
+        import clang_format
 
         clang_format_path = str(
             Path(clang_format.__file__).parent / "data" / "bin" / "clang-format"
@@ -39,41 +35,112 @@ def format_cpp(file_contents: str, filename: str) -> str:
     except ImportError:
         clang_format_path = "clang-format"
 
-    formatted_file_contents = python_util.execute_subprocess(
+    result = subprocess.run(
         [clang_format_path, f"-assume-filename={filename}"],
-        stdin_data=file_contents,
-        log_stdout=False,
+        input=file_contents,
+        stdout=subprocess.PIPE,
+        stderr=None,
+        check=True,
+        text=True,
     )
 
-    return formatted_file_contents
+    return result.stdout
 
 
-def format_py(file_contents: str) -> str:
+def format_py(file_contents: str, filename: str) -> str:
     """
-    Autoformat a given Python file using black
-    """
-    return black.format_str(file_contents, mode=BLACK_FILE_MODE)
+    Autoformat a given Python file using ruff
 
-
-def format_pyi(file_contents: str) -> str:
+    Args:
+        filename: A name that this file might have on disk; this does not have to be a real path,
+            it's only used for ruff to find the correct style file (by traversing upwards from this
+            location)
     """
-    Autoformat a given Python interface file using black
-    """
-    mode = copy.copy(BLACK_FILE_MODE)
-    mode.is_pyi = True
-    return black.format_str(file_contents, mode=mode)
+    result = subprocess.run(
+        [find_ruff_bin(), "format", f"--stdin-filename={filename}", "-"],
+        input=file_contents,
+        stdout=subprocess.PIPE,
+        check=True,
+        # Disable the ruff cache.  This is important for running in a hermetic context like a bazel
+        # test, and shouldn't really hurt other use cases.  If it does, we should work around this
+        # differently.
+        env=dict(os.environ, RUFF_NO_CACHE="true"),
+        text=True,
+    )
+    result = subprocess.run(
+        [
+            find_ruff_bin(),
+            "check",
+            "--select=I",
+            "--fix",
+            "--quiet",
+            f"--stdin-filename={filename}",
+            "-",
+        ],
+        input=result.stdout,
+        stdout=subprocess.PIPE,
+        check=True,
+        # Disable the ruff cache.  This is important for running in a hermetic context like a bazel
+        # test, and shouldn't really hurt other use cases.  If it does, we should work around this
+        # differently.
+        env=dict(os.environ, RUFF_NO_CACHE="true"),
+        text=True,
+    )
+    return result.stdout
 
 
 def format_py_dir(dirname: T.Openable) -> None:
     """
     Autoformat python files in a directory (recursively) in-place
     """
-    for root, _, files in os.walk(dirname):
-        for filename in files:
-            if filename.endswith(".py"):
-                black.format_file_in_place(
-                    Path(dirname) / root / filename,
-                    fast=True,
-                    mode=BLACK_FILE_MODE,
-                    write_back=black.WriteBack.YES,
-                )
+    subprocess.run(
+        [find_ruff_bin(), "format", dirname],
+        check=True,
+        # Disable the ruff cache.  This is important for running in a hermetic context like a bazel
+        # test, and shouldn't really hurt other use cases.  If it does, we should work around this
+        # differently.
+        env=dict(os.environ, RUFF_NO_CACHE="true"),
+        text=True,
+    )
+
+
+_rustfmt_path: T.Optional[Path] = None
+
+
+def _find_rustfmt() -> Path:
+    """
+    Find the rustfmt binary
+
+    """
+    global _rustfmt_path  # noqa: PLW0603
+
+    if _rustfmt_path is not None:
+        return _rustfmt_path
+
+    rustfmt = shutil.which("rustfmt")
+    if rustfmt is None:
+        raise FileNotFoundError("Could not find rustfmt")
+
+    # Ignore the type because mypy can't reason about the fact that we just checked that rustfmt
+    # is not None.
+    _rustfmt_path = Path(rustfmt)
+    return _rustfmt_path
+
+
+def format_rust(file_contents: str, filename: str) -> str:
+    """
+    Autoformat a given Rust file using rustfmt.
+
+    Args:
+        filename: A name that this file might have on disk; this does not have to be a real path,
+            it's only used for ruff to find the correct style file (by traversing upwards from this
+            location)
+    """
+    result = subprocess.run(
+        [_find_rustfmt()],
+        input=file_contents,
+        stdout=subprocess.PIPE,
+        check=True,
+        text=True,
+    )
+    return result.stdout

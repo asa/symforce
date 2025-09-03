@@ -4,7 +4,7 @@
 // Do NOT modify by hand.
 // -----------------------------------------------------------------------------
 
-#include "./pose2.h"
+#include <sym/pose2.h>
 
 namespace sym {
 
@@ -27,7 +27,7 @@ std::ostream& operator<<(std::ostream& os, const Pose2f& a) {
 // --------------------------------------------------------------------------
 
 template <typename Scalar>
-sym::Rot2<Scalar> sym::Pose2<Scalar>::Rotation() const {
+const Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::RotationStorage() const {
   // Total ops: 0
 
   // Input arrays
@@ -38,14 +38,14 @@ sym::Rot2<Scalar> sym::Pose2<Scalar>::Rotation() const {
   // Output terms (1)
   Eigen::Matrix<Scalar, 2, 1> _res;
 
-  _res[0] = _self[0];
-  _res[1] = _self[1];
+  _res(0, 0) = _self[0];
+  _res(1, 0) = _self[1];
 
-  return sym::Rot2<Scalar>(_res);
+  return _res;
 }
 
 template <typename Scalar>
-Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::Position() const {
+const Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::Position() const {
   // Total ops: 0
 
   // Input arrays
@@ -63,7 +63,7 @@ Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::Position() const {
 }
 
 template <typename Scalar>
-Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::ComposeWithPoint(
+const Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::ComposeWithPoint(
     const Eigen::Matrix<Scalar, 2, 1>& right) const {
   // Total ops: 8
 
@@ -82,7 +82,7 @@ Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::ComposeWithPoint(
 }
 
 template <typename Scalar>
-Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::InverseCompose(
+const Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::InverseCompose(
     const Eigen::Matrix<Scalar, 2, 1>& point) const {
   // Total ops: 14
 
@@ -103,7 +103,7 @@ Eigen::Matrix<Scalar, 2, 1> sym::Pose2<Scalar>::InverseCompose(
 }
 
 template <typename Scalar>
-Eigen::Matrix<Scalar, 3, 3> sym::Pose2<Scalar>::ToHomogenousMatrix() const {
+const Eigen::Matrix<Scalar, 3, 3> sym::Pose2<Scalar>::ToHomogenousMatrix() const {
   // Total ops: 1
 
   // Input arrays

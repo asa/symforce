@@ -171,7 +171,7 @@ def run_matmul_benchmark(
                     # Parse n_runs_multiplier out of the log, and divide results by number of runs
                     # to give all metrics per-run
                     gain = float(output.splitlines()[1].split()[-1][:-1])
-                    scale = (10 ** 2) * (gain ** 2)
+                    scale = (10**2) * (gain**2)
 
                     matrix_results = [float(l.split(",")[0]) for l in output.splitlines()[-3:]]
                     matrix_results = [x / scale for x in matrix_results]
@@ -203,7 +203,7 @@ def run_matmul_benchmark(
 @argh.arg(
     "--out_dir", help="Directory in which to put results (will be created if it does not exist)"
 )
-def main(benchmark: str = None, out_dir: str = "benchmark_outputs") -> None:
+def main(benchmark: T.Optional[str] = None, out_dir: str = "benchmark_outputs") -> None:
     out_path = Path(out_dir)
     if not out_path.is_dir():
         out_path.mkdir()
@@ -214,8 +214,8 @@ def main(benchmark: str = None, out_dir: str = "benchmark_outputs") -> None:
         else:
             run_benchmark(benchmark, CONFIG[benchmark], out_path)
     else:
-        for (  # pylint: disable=redefined-argument-from-local
-            benchmark,
+        for (
+            benchmark,  # noqa: PLR1704
             benchmark_config,
         ) in CONFIG.items():
             run_benchmark(benchmark, benchmark_config, out_path)

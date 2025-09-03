@@ -9,14 +9,16 @@
 // Required by MetisSupport
 #include <iostream>
 
-#include <Eigen/Dense>
+#include <Eigen/Cholesky>
+#include <Eigen/Core>
 #include <Eigen/MetisSupport>
-#include <Eigen/Sparse>
 #include <Eigen/SparseCholesky>
+#include <Eigen/SparseCore>
+#include <Eigen/SparseLU>
 #include <catch2/catch_test_macros.hpp>
 
 #include <sym/ops/storage_ops.h>
-#include <symforce/opt/cholesky/sparse_cholesky_solver.h>
+#include <symforce/opt/sparse_cholesky/sparse_cholesky_solver.h>
 #include <symforce/opt/tic_toc.h>
 
 using SparseMatrix = Eigen::SparseMatrix<double>;

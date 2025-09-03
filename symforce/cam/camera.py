@@ -13,6 +13,7 @@ from .camera_cal import CameraCal
 class Camera:
     """
     Camera with a given camera calibration and an optionally specified image size (width, height).
+
     If the image size is specified, we use it to check whether pixels (either given or computed by
     projection of 3D points into the image frame) are in the image frame and thus valid/invalid.
     """
@@ -20,7 +21,9 @@ class Camera:
     # Type that represents this or any subclasses
     CameraT = T.TypeVar("CameraT", bound="Camera")
 
-    def __init__(self, calibration: CameraCal, image_size: T.Sequence[T.Scalar] = None) -> None:
+    def __init__(
+        self, calibration: CameraCal, image_size: T.Optional[T.Sequence[T.Scalar]] = None
+    ) -> None:
         self.calibration = calibration
 
         if image_size is not None:
@@ -56,7 +59,7 @@ class Camera:
         """
         Project a 3D point in the camera frame into 2D pixel coordinates.
 
-        Return:
+        Returns:
             pixel: (x, y) coordinate in pixels if valid
             is_valid: 1 if the operation is within bounds (including image_size bounds) else 0
         """
@@ -76,7 +79,7 @@ class Camera:
         Args:
             normalize: Whether camera_ray will be normalized (False by default)
 
-        Return:
+        Returns:
             camera_ray: The ray in the camera frame
             is_valid: 1 if the operation is within bounds else 0
         """

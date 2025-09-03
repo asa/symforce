@@ -8,6 +8,7 @@ from __future__ import annotations
 import numpy as np
 
 import symforce.internal.symbolic as sf
+from symforce import ops
 from symforce import typing as T
 from symforce.ops.interfaces import Group
 
@@ -24,7 +25,6 @@ class Complex(Group):
     A complex number is also a convenient way to store a two-dimensional rotation.
 
     References:
-
         https://en.wikipedia.org/wiki/Complex_number
     """
 
@@ -60,7 +60,14 @@ class Complex(Group):
 
     @classmethod
     def symbolic(cls, name: str, **kwargs: T.Any) -> Complex:
-        return cls.from_storage([sf.Symbol(f"{name}_{v}", **kwargs) for v in ["re", "im"]])
+        if ops.StorageOps.use_latex_friendly_symbols():
+            format_string = "{name}_{{{v}}}"
+        else:
+            format_string = "{name}_{v}"
+
+        return cls.from_storage(
+            [sf.Symbol(format_string.format(name=name, v=v), **kwargs) for v in ["re", "im"]]
+        )
 
     # -------------------------------------------------------------------------
     # Group concept - see symforce.ops.group_ops
@@ -109,7 +116,7 @@ class Complex(Group):
         Returns:
             Scalar: real**2 + imag**2
         """
-        return self.real ** 2 + self.imag ** 2
+        return self.real**2 + self.imag**2
 
     def __mul__(self, right: Complex) -> Complex:
         """
@@ -144,7 +151,7 @@ class Complex(Group):
         """
         return self.__class__(-self.real, -self.imag)
 
-    def __div__(self, scalar: T.Scalar) -> Complex:
+    def __truediv__(self, scalar: T.Scalar) -> Complex:
         """
         Scalar element-wise division.
 
@@ -155,8 +162,6 @@ class Complex(Group):
             Complex:
         """
         return self.__class__(self.real / scalar, self.imag / scalar)
-
-    __truediv__ = __div__
 
     @classmethod
     def random_uniform(cls, low: T.Scalar, high: T.Scalar) -> Complex:

@@ -33,146 +33,21 @@ class CamPackageTest(unittest.TestCase):
         },
         "SphericalCameraCal": {
             "critical_theta": 3.141592653589793,
-            "distortion_coeffs": [0.035, -0.025, 0.007, -0.0015],
+            "distortion_coeffs": [0.035, -0.025, 0.007, -0.0015, 0.00023, -0.00027],
         },
     }
 
     @staticmethod
-    def cam_cal_from_points(cam_cls, focal_length, principal_point):
-        # type: (T.Type, T.Sequence[float], T.Sequence[float]) -> T.Any
+    def cam_cal_from_points(
+        cam_cls: T.Type, focal_length: T.Sequence[float], principal_point: T.Sequence[float]
+    ) -> T.Any:
         return cam_cls(
             focal_length=focal_length,
             principal_point=principal_point,
-            **CamPackageTest._DISTORTION_COEFF_VALS.get(cam_cls.__name__, {})
+            **CamPackageTest._DISTORTION_COEFF_VALS.get(cam_cls.__name__, {}),
         )
 
-    def test_getters_LinearCameraCal(self):
-        # type: () -> None
-        focal_length = [1.0, 2.0]
-        principal_point = [3.0, 4.0]
-        cam_cal = self.cam_cal_from_points(
-            sym.LinearCameraCal, focal_length=focal_length, principal_point=principal_point
-        )
-
-        np.testing.assert_array_equal(np.array(focal_length), cam_cal.focal_length())
-        np.testing.assert_array_equal(np.array(principal_point), cam_cal.principal_point())
-
-        with self.subTest("Getters are compatible with the constructor"):
-            new_cam_cal = self.cam_cal_from_points(
-                sym.LinearCameraCal,
-                focal_length=cam_cal.focal_length(),
-                principal_point=cam_cal.principal_point(),
-            )
-            self.assertEqual(cam_cal.data, new_cam_cal.data)
-            for x in new_cam_cal.data:
-                self.assertIsInstance(x, float)
-
-    def test_storage_ops_LinearCameraCal(self):
-        # type: () -> None
-        cam_cal = self.cam_cal_from_points(
-            sym.LinearCameraCal, focal_length=[1.0, 2.0], principal_point=[3.0, 4.0]
-        )
-        storage = cam_cal.to_storage()
-
-        self.assertEqual(cam_cal.storage_dim(), 4)
-        self.assertEqual(len(storage), 4)
-
-        cam_cal_copy = sym.LinearCameraCal.from_storage(storage)
-
-        self.assertEqual(cam_cal, cam_cal_copy)
-
-        cam_cal_different = sym.LinearCameraCal.from_storage([x + 1 for x in storage])
-
-        self.assertNotEqual(cam_cal, cam_cal_different)
-
-    def test_lie_group_ops_LinearCameraCal(self):
-        # type: () -> None
-
-        # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
-        # of the symbolic class's methods.
-        cam_cal = sym.LinearCameraCal.from_storage([1.0, 2.0, 3.0, 4.0])
-
-        tangent = cam_cal.to_tangent(epsilon=1e-08)
-
-        # Test tangent_dim is correct
-        self.assertEqual(cam_cal.tangent_dim(), 4)
-
-        # Test to_tangent is correct
-        np.testing.assert_allclose(tangent, np.array([1.0, 2.0, 3.0, 4.0]))
-
-        # Test from_tangent is correct
-        np.testing.assert_allclose(
-            sym.LinearCameraCal.from_tangent(vec=tangent, epsilon=1e-08).to_storage(),
-            [1.0, 2.0, 3.0, 4.0],
-        )
-
-        second_cam_cal = sym.LinearCameraCal.from_storage([3.3, 5.5, 2.4, 3.8])
-
-        # Test retract is correct
-        np.testing.assert_allclose(
-            second_cam_cal.retract(vec=tangent, epsilon=1e-08).to_storage(), [4.3, 7.5, 5.4, 7.8]
-        )
-
-        # Test local_coordinates is correct
-        np.testing.assert_allclose(
-            second_cam_cal.local_coordinates(cam_cal, epsilon=1e-08),
-            np.array([-2.3, -3.5, 0.6000000000000001, 0.20000000000000018]),
-        )
-
-    def test_pixel_from_camera_point_LinearCameraCal(self):
-        # type: () -> None
-
-        # NOTE(brad): The magic numbers come from the jinja template, and are the outputs
-        # of the symbolic class's methods.
-
-        cam_cal = sym.LinearCameraCal.from_storage([1.0, 2.0, 3.0, 4.0])
-        point = np.array([0.6, 0.8, 0.2])
-
-        pixel, is_valid = cam_cal.pixel_from_camera_point(point=point, epsilon=1e-08)
-
-        np.testing.assert_allclose(pixel, np.array([6.0, 12.0]))
-        self.assertEqual(is_valid, 1.0)
-
-        (
-            j_pixel,
-            j_is_valid,
-            pixel_D_cal,
-            pixel_D_point,
-        ) = cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
-
-        np.testing.assert_allclose(j_pixel, np.array([6.0, 12.0]))
-        self.assertEqual(j_is_valid, 1.0)
-        self.assertEqual(pixel_D_cal.shape, (2, 4))
-        self.assertEqual(pixel_D_point.shape, (2, 3))
-
-    def test_camera_ray_from_pixel_LinearCameraCal(self):
-        # type: () -> None
-
-        # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
-        # of the symbolic class's methods.
-
-        cam_cal = sym.LinearCameraCal.from_storage([1.0, 2.0, 3.0, 4.0])
-        pixel = np.array([0.6, 0.8])
-
-        ray, is_valid = cam_cal.camera_ray_from_pixel(pixel=pixel, epsilon=1e-08)
-
-        np.testing.assert_allclose(ray, np.array([-2.4, -1.6, 1.0]))
-        self.assertEqual(is_valid, 1.0)
-
-        (
-            j_ray,
-            j_is_valid,
-            point_D_cal,
-            point_D_pixel,
-        ) = cam_cal.camera_ray_from_pixel_with_jacobians(pixel=pixel, epsilon=1e-08)
-
-        np.testing.assert_allclose(j_ray, np.array([-2.4, -1.6, 1.0]))
-        self.assertEqual(j_is_valid, 1.0)
-        self.assertEqual(point_D_cal.shape, (3, 4))
-        self.assertEqual(point_D_pixel.shape, (3, 2))
-
-    def test_getters_ATANCameraCal(self):
-        # type: () -> None
+    def test_getters_ATANCameraCal(self) -> None:
         focal_length = [1.0, 2.0]
         principal_point = [3.0, 4.0]
         cam_cal = self.cam_cal_from_points(
@@ -192,8 +67,7 @@ class CamPackageTest(unittest.TestCase):
             for x in new_cam_cal.data:
                 self.assertIsInstance(x, float)
 
-    def test_storage_ops_ATANCameraCal(self):
-        # type: () -> None
+    def test_storage_ops_ATANCameraCal(self) -> None:
         cam_cal = self.cam_cal_from_points(
             sym.ATANCameraCal, focal_length=[1.0, 2.0], principal_point=[3.0, 4.0]
         )
@@ -210,9 +84,7 @@ class CamPackageTest(unittest.TestCase):
 
         self.assertNotEqual(cam_cal, cam_cal_different)
 
-    def test_lie_group_ops_ATANCameraCal(self):
-        # type: () -> None
-
+    def test_lie_group_ops_ATANCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
         # of the symbolic class's methods.
         cam_cal = sym.ATANCameraCal.from_storage([1.0, 2.0, 3.0, 4.0, 0.5])
@@ -245,9 +117,7 @@ class CamPackageTest(unittest.TestCase):
             np.array([-2.3, -3.5, 0.6000000000000001, 0.20000000000000018, 0.0]),
         )
 
-    def test_pixel_from_camera_point_ATANCameraCal(self):
-        # type: () -> None
-
+    def test_pixel_from_camera_point_ATANCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs
         # of the symbolic class's methods.
 
@@ -259,21 +129,16 @@ class CamPackageTest(unittest.TestCase):
         np.testing.assert_allclose(pixel, np.array([4.43702966477849, 7.83207910607598]))
         self.assertEqual(is_valid, 1.0)
 
-        (
-            j_pixel,
-            j_is_valid,
-            pixel_D_cal,
-            pixel_D_point,
-        ) = cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        j_pixel, j_is_valid, pixel_D_cal, pixel_D_point = (
+            cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        )
 
         np.testing.assert_allclose(j_pixel, np.array([4.43702966477849, 7.83207910607598]))
         self.assertEqual(j_is_valid, 1.0)
         self.assertEqual(pixel_D_cal.shape, (2, 5))
         self.assertEqual(pixel_D_point.shape, (2, 3))
 
-    def test_camera_ray_from_pixel_ATANCameraCal(self):
-        # type: () -> None
-
+    def test_camera_ray_from_pixel_ATANCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
         # of the symbolic class's methods.
 
@@ -285,20 +150,16 @@ class CamPackageTest(unittest.TestCase):
         np.testing.assert_allclose(ray, np.array([-12.60188996700083, -8.401259978000553, 1.0]))
         self.assertEqual(is_valid, 1.0)
 
-        (
-            j_ray,
-            j_is_valid,
-            point_D_cal,
-            point_D_pixel,
-        ) = cam_cal.camera_ray_from_pixel_with_jacobians(pixel=pixel, epsilon=1e-08)
+        j_ray, j_is_valid, point_D_cal, point_D_pixel = (
+            cam_cal.camera_ray_from_pixel_with_jacobians(pixel=pixel, epsilon=1e-08)
+        )
 
         np.testing.assert_allclose(j_ray, np.array([-12.60188996700083, -8.401259978000553, 1.0]))
         self.assertEqual(j_is_valid, 1.0)
         self.assertEqual(point_D_cal.shape, (3, 5))
         self.assertEqual(point_D_pixel.shape, (3, 2))
 
-    def test_getters_DoubleSphereCameraCal(self):
-        # type: () -> None
+    def test_getters_DoubleSphereCameraCal(self) -> None:
         focal_length = [1.0, 2.0]
         principal_point = [3.0, 4.0]
         cam_cal = self.cam_cal_from_points(
@@ -318,8 +179,7 @@ class CamPackageTest(unittest.TestCase):
             for x in new_cam_cal.data:
                 self.assertIsInstance(x, float)
 
-    def test_storage_ops_DoubleSphereCameraCal(self):
-        # type: () -> None
+    def test_storage_ops_DoubleSphereCameraCal(self) -> None:
         cam_cal = self.cam_cal_from_points(
             sym.DoubleSphereCameraCal, focal_length=[1.0, 2.0], principal_point=[3.0, 4.0]
         )
@@ -336,9 +196,7 @@ class CamPackageTest(unittest.TestCase):
 
         self.assertNotEqual(cam_cal, cam_cal_different)
 
-    def test_lie_group_ops_DoubleSphereCameraCal(self):
-        # type: () -> None
-
+    def test_lie_group_ops_DoubleSphereCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
         # of the symbolic class's methods.
         cam_cal = sym.DoubleSphereCameraCal.from_storage([1.0, 2.0, 3.0, 4.0, 5.1, -6.2])
@@ -371,9 +229,7 @@ class CamPackageTest(unittest.TestCase):
             np.array([-2.3, -3.5, 0.6000000000000001, 0.20000000000000018, 0.0, 0.0]),
         )
 
-    def test_pixel_from_camera_point_DoubleSphereCameraCal(self):
-        # type: () -> None
-
+    def test_pixel_from_camera_point_DoubleSphereCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs
         # of the symbolic class's methods.
 
@@ -385,21 +241,16 @@ class CamPackageTest(unittest.TestCase):
         np.testing.assert_allclose(pixel, np.array([3.12417556254144, 4.33113483344385]))
         self.assertEqual(is_valid, 1.0)
 
-        (
-            j_pixel,
-            j_is_valid,
-            pixel_D_cal,
-            pixel_D_point,
-        ) = cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        j_pixel, j_is_valid, pixel_D_cal, pixel_D_point = (
+            cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        )
 
         np.testing.assert_allclose(j_pixel, np.array([3.12417556254144, 4.33113483344385]))
         self.assertEqual(j_is_valid, 1.0)
         self.assertEqual(pixel_D_cal.shape, (2, 6))
         self.assertEqual(pixel_D_point.shape, (2, 3))
 
-    def test_camera_ray_from_pixel_DoubleSphereCameraCal(self):
-        # type: () -> None
-
+    def test_camera_ray_from_pixel_DoubleSphereCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
         # of the symbolic class's methods.
 
@@ -413,12 +264,9 @@ class CamPackageTest(unittest.TestCase):
         )
         self.assertEqual(is_valid, 0.0)
 
-        (
-            j_ray,
-            j_is_valid,
-            point_D_cal,
-            point_D_pixel,
-        ) = cam_cal.camera_ray_from_pixel_with_jacobians(pixel=pixel, epsilon=1e-08)
+        j_ray, j_is_valid, point_D_cal, point_D_pixel = (
+            cam_cal.camera_ray_from_pixel_with_jacobians(pixel=pixel, epsilon=1e-08)
+        )
 
         np.testing.assert_allclose(
             j_ray, np.array([-1.7554218715299938, -1.1702812476866626, -1.117691027921969])
@@ -427,8 +275,7 @@ class CamPackageTest(unittest.TestCase):
         self.assertEqual(point_D_cal.shape, (3, 6))
         self.assertEqual(point_D_pixel.shape, (3, 2))
 
-    def test_getters_EquirectangularCameraCal(self):
-        # type: () -> None
+    def test_getters_EquirectangularCameraCal(self) -> None:
         focal_length = [1.0, 2.0]
         principal_point = [3.0, 4.0]
         cam_cal = self.cam_cal_from_points(
@@ -448,8 +295,7 @@ class CamPackageTest(unittest.TestCase):
             for x in new_cam_cal.data:
                 self.assertIsInstance(x, float)
 
-    def test_storage_ops_EquirectangularCameraCal(self):
-        # type: () -> None
+    def test_storage_ops_EquirectangularCameraCal(self) -> None:
         cam_cal = self.cam_cal_from_points(
             sym.EquirectangularCameraCal, focal_length=[1.0, 2.0], principal_point=[3.0, 4.0]
         )
@@ -466,9 +312,7 @@ class CamPackageTest(unittest.TestCase):
 
         self.assertNotEqual(cam_cal, cam_cal_different)
 
-    def test_lie_group_ops_EquirectangularCameraCal(self):
-        # type: () -> None
-
+    def test_lie_group_ops_EquirectangularCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
         # of the symbolic class's methods.
         cam_cal = sym.EquirectangularCameraCal.from_storage([1.0, 2.0, 3.0, 4.0])
@@ -500,9 +344,7 @@ class CamPackageTest(unittest.TestCase):
             np.array([-2.3, -3.5, 0.6000000000000001, 0.20000000000000018]),
         )
 
-    def test_pixel_from_camera_point_EquirectangularCameraCal(self):
-        # type: () -> None
-
+    def test_pixel_from_camera_point_EquirectangularCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs
         # of the symbolic class's methods.
 
@@ -511,24 +353,19 @@ class CamPackageTest(unittest.TestCase):
 
         pixel, is_valid = cam_cal.pixel_from_camera_point(point=point, epsilon=1e-08)
 
-        np.testing.assert_allclose(pixel, np.array([4.24904574989825, 5.80366449289037]))
+        np.testing.assert_allclose(pixel, np.array([4.24904575739825, 5.80366449289037]))
         self.assertEqual(is_valid, 1.0)
 
-        (
-            j_pixel,
-            j_is_valid,
-            pixel_D_cal,
-            pixel_D_point,
-        ) = cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        j_pixel, j_is_valid, pixel_D_cal, pixel_D_point = (
+            cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        )
 
-        np.testing.assert_allclose(j_pixel, np.array([4.24904574989825, 5.80366449289037]))
+        np.testing.assert_allclose(j_pixel, np.array([4.24904575739825, 5.80366449289037]))
         self.assertEqual(j_is_valid, 1.0)
         self.assertEqual(pixel_D_cal.shape, (2, 4))
         self.assertEqual(pixel_D_point.shape, (2, 3))
 
-    def test_camera_ray_from_pixel_EquirectangularCameraCal(self):
-        # type: () -> None
-
+    def test_camera_ray_from_pixel_EquirectangularCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
         # of the symbolic class's methods.
 
@@ -542,12 +379,9 @@ class CamPackageTest(unittest.TestCase):
         )
         self.assertEqual(is_valid, 0.0)
 
-        (
-            j_ray,
-            j_is_valid,
-            point_D_cal,
-            point_D_pixel,
-        ) = cam_cal.camera_ray_from_pixel_with_jacobians(pixel=pixel, epsilon=1e-08)
+        j_ray, j_is_valid, point_D_cal, point_D_pixel = (
+            cam_cal.camera_ray_from_pixel_with_jacobians(pixel=pixel, epsilon=1e-08)
+        )
 
         np.testing.assert_allclose(
             j_ray, np.array([0.019723202204202806, -0.9995736030415051, 0.021531544241776817])
@@ -556,8 +390,118 @@ class CamPackageTest(unittest.TestCase):
         self.assertEqual(point_D_cal.shape, (3, 4))
         self.assertEqual(point_D_pixel.shape, (3, 2))
 
-    def test_getters_PolynomialCameraCal(self):
-        # type: () -> None
+    def test_getters_LinearCameraCal(self) -> None:
+        focal_length = [1.0, 2.0]
+        principal_point = [3.0, 4.0]
+        cam_cal = self.cam_cal_from_points(
+            sym.LinearCameraCal, focal_length=focal_length, principal_point=principal_point
+        )
+
+        np.testing.assert_array_equal(np.array(focal_length), cam_cal.focal_length())
+        np.testing.assert_array_equal(np.array(principal_point), cam_cal.principal_point())
+
+        with self.subTest("Getters are compatible with the constructor"):
+            new_cam_cal = self.cam_cal_from_points(
+                sym.LinearCameraCal,
+                focal_length=cam_cal.focal_length(),
+                principal_point=cam_cal.principal_point(),
+            )
+            self.assertEqual(cam_cal.data, new_cam_cal.data)
+            for x in new_cam_cal.data:
+                self.assertIsInstance(x, float)
+
+    def test_storage_ops_LinearCameraCal(self) -> None:
+        cam_cal = self.cam_cal_from_points(
+            sym.LinearCameraCal, focal_length=[1.0, 2.0], principal_point=[3.0, 4.0]
+        )
+        storage = cam_cal.to_storage()
+
+        self.assertEqual(cam_cal.storage_dim(), 4)
+        self.assertEqual(len(storage), 4)
+
+        cam_cal_copy = sym.LinearCameraCal.from_storage(storage)
+
+        self.assertEqual(cam_cal, cam_cal_copy)
+
+        cam_cal_different = sym.LinearCameraCal.from_storage([x + 1 for x in storage])
+
+        self.assertNotEqual(cam_cal, cam_cal_different)
+
+    def test_lie_group_ops_LinearCameraCal(self) -> None:
+        # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
+        # of the symbolic class's methods.
+        cam_cal = sym.LinearCameraCal.from_storage([1.0, 2.0, 3.0, 4.0])
+
+        tangent = cam_cal.to_tangent(epsilon=1e-08)
+
+        # Test tangent_dim is correct
+        self.assertEqual(cam_cal.tangent_dim(), 4)
+
+        # Test to_tangent is correct
+        np.testing.assert_allclose(tangent, np.array([1.0, 2.0, 3.0, 4.0]))
+
+        # Test from_tangent is correct
+        np.testing.assert_allclose(
+            sym.LinearCameraCal.from_tangent(vec=tangent, epsilon=1e-08).to_storage(),
+            [1.0, 2.0, 3.0, 4.0],
+        )
+
+        second_cam_cal = sym.LinearCameraCal.from_storage([3.3, 5.5, 2.4, 3.8])
+
+        # Test retract is correct
+        np.testing.assert_allclose(
+            second_cam_cal.retract(vec=tangent, epsilon=1e-08).to_storage(), [4.3, 7.5, 5.4, 7.8]
+        )
+
+        # Test local_coordinates is correct
+        np.testing.assert_allclose(
+            second_cam_cal.local_coordinates(cam_cal, epsilon=1e-08),
+            np.array([-2.3, -3.5, 0.6000000000000001, 0.20000000000000018]),
+        )
+
+    def test_pixel_from_camera_point_LinearCameraCal(self) -> None:
+        # NOTE(brad): The magic numbers come from the jinja template, and are the outputs
+        # of the symbolic class's methods.
+
+        cam_cal = sym.LinearCameraCal.from_storage([1.0, 2.0, 3.0, 4.0])
+        point = np.array([0.6, 0.8, 0.2])
+
+        pixel, is_valid = cam_cal.pixel_from_camera_point(point=point, epsilon=1e-08)
+
+        np.testing.assert_allclose(pixel, np.array([6.0, 12.0]))
+        self.assertEqual(is_valid, 1.0)
+
+        j_pixel, j_is_valid, pixel_D_cal, pixel_D_point = (
+            cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        )
+
+        np.testing.assert_allclose(j_pixel, np.array([6.0, 12.0]))
+        self.assertEqual(j_is_valid, 1.0)
+        self.assertEqual(pixel_D_cal.shape, (2, 4))
+        self.assertEqual(pixel_D_point.shape, (2, 3))
+
+    def test_camera_ray_from_pixel_LinearCameraCal(self) -> None:
+        # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
+        # of the symbolic class's methods.
+
+        cam_cal = sym.LinearCameraCal.from_storage([1.0, 2.0, 3.0, 4.0])
+        pixel = np.array([0.6, 0.8])
+
+        ray, is_valid = cam_cal.camera_ray_from_pixel(pixel=pixel, epsilon=1e-08)
+
+        np.testing.assert_allclose(ray, np.array([-2.4, -1.6, 1.0]))
+        self.assertEqual(is_valid, 1.0)
+
+        j_ray, j_is_valid, point_D_cal, point_D_pixel = (
+            cam_cal.camera_ray_from_pixel_with_jacobians(pixel=pixel, epsilon=1e-08)
+        )
+
+        np.testing.assert_allclose(j_ray, np.array([-2.4, -1.6, 1.0]))
+        self.assertEqual(j_is_valid, 1.0)
+        self.assertEqual(point_D_cal.shape, (3, 4))
+        self.assertEqual(point_D_pixel.shape, (3, 2))
+
+    def test_getters_PolynomialCameraCal(self) -> None:
         focal_length = [1.0, 2.0]
         principal_point = [3.0, 4.0]
         cam_cal = self.cam_cal_from_points(
@@ -577,8 +521,7 @@ class CamPackageTest(unittest.TestCase):
             for x in new_cam_cal.data:
                 self.assertIsInstance(x, float)
 
-    def test_storage_ops_PolynomialCameraCal(self):
-        # type: () -> None
+    def test_storage_ops_PolynomialCameraCal(self) -> None:
         cam_cal = self.cam_cal_from_points(
             sym.PolynomialCameraCal, focal_length=[1.0, 2.0], principal_point=[3.0, 4.0]
         )
@@ -595,9 +538,7 @@ class CamPackageTest(unittest.TestCase):
 
         self.assertNotEqual(cam_cal, cam_cal_different)
 
-    def test_lie_group_ops_PolynomialCameraCal(self):
-        # type: () -> None
-
+    def test_lie_group_ops_PolynomialCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
         # of the symbolic class's methods.
         cam_cal = sym.PolynomialCameraCal.from_storage(
@@ -636,9 +577,7 @@ class CamPackageTest(unittest.TestCase):
             np.array([-2.3, -3.5, 0.6000000000000001, 0.20000000000000018, 0.0, 0.0, 0.0, 0.0]),
         )
 
-    def test_pixel_from_camera_point_PolynomialCameraCal(self):
-        # type: () -> None
-
+    def test_pixel_from_camera_point_PolynomialCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs
         # of the symbolic class's methods.
 
@@ -652,20 +591,16 @@ class CamPackageTest(unittest.TestCase):
         np.testing.assert_allclose(pixel, np.array([289.8750003573, 769.0000009528001]))
         self.assertEqual(is_valid, 0.0)
 
-        (
-            j_pixel,
-            j_is_valid,
-            pixel_D_cal,
-            pixel_D_point,
-        ) = cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        j_pixel, j_is_valid, pixel_D_cal, pixel_D_point = (
+            cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        )
 
         np.testing.assert_allclose(j_pixel, np.array([289.8750003573, 769.0000009528001]))
         self.assertEqual(j_is_valid, 0.0)
         self.assertEqual(pixel_D_cal.shape, (2, 7))
         self.assertEqual(pixel_D_point.shape, (2, 3))
 
-    def test_getters_SphericalCameraCal(self):
-        # type: () -> None
+    def test_getters_SphericalCameraCal(self) -> None:
         focal_length = [1.0, 2.0]
         principal_point = [3.0, 4.0]
         cam_cal = self.cam_cal_from_points(
@@ -685,15 +620,14 @@ class CamPackageTest(unittest.TestCase):
             for x in new_cam_cal.data:
                 self.assertIsInstance(x, float)
 
-    def test_storage_ops_SphericalCameraCal(self):
-        # type: () -> None
+    def test_storage_ops_SphericalCameraCal(self) -> None:
         cam_cal = self.cam_cal_from_points(
             sym.SphericalCameraCal, focal_length=[1.0, 2.0], principal_point=[3.0, 4.0]
         )
         storage = cam_cal.to_storage()
 
-        self.assertEqual(cam_cal.storage_dim(), 9)
-        self.assertEqual(len(storage), 9)
+        self.assertEqual(cam_cal.storage_dim(), 11)
+        self.assertEqual(len(storage), 11)
 
         cam_cal_copy = sym.SphericalCameraCal.from_storage(storage)
 
@@ -703,76 +637,233 @@ class CamPackageTest(unittest.TestCase):
 
         self.assertNotEqual(cam_cal, cam_cal_different)
 
-    def test_lie_group_ops_SphericalCameraCal(self):
-        # type: () -> None
-
+    def test_lie_group_ops_SphericalCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
         # of the symbolic class's methods.
         cam_cal = sym.SphericalCameraCal.from_storage(
-            [1.0, 2.0, 3.0, 4.0, 3.141592653589793, 0.035, -0.025, 0.007, -0.0015]
+            [
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                3.141592653589793,
+                0.035,
+                -0.025,
+                0.007,
+                -0.0015,
+                0.00023,
+                -0.00027,
+            ]
         )
 
         tangent = cam_cal.to_tangent(epsilon=1e-08)
 
         # Test tangent_dim is correct
-        self.assertEqual(cam_cal.tangent_dim(), 9)
+        self.assertEqual(cam_cal.tangent_dim(), 11)
 
         # Test to_tangent is correct
         np.testing.assert_allclose(
             tangent,
-            np.array([1.0, 2.0, 3.0, 4.0, 3.141592653589793, 0.035, -0.025, 0.007, -0.0015]),
+            np.array(
+                [
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    3.141592653589793,
+                    0.035,
+                    -0.025,
+                    0.007,
+                    -0.0015,
+                    0.00023,
+                    -0.00027,
+                ]
+            ),
         )
 
         # Test from_tangent is correct
         np.testing.assert_allclose(
             sym.SphericalCameraCal.from_tangent(vec=tangent, epsilon=1e-08).to_storage(),
-            [1.0, 2.0, 3.0, 4.0, 3.141592653589793, 0.035, -0.025, 0.007, -0.0015],
+            [
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                3.141592653589793,
+                0.035,
+                -0.025,
+                0.007,
+                -0.0015,
+                0.00023,
+                -0.00027,
+            ],
         )
 
         second_cam_cal = sym.SphericalCameraCal.from_storage(
-            [3.3, 5.5, 2.4, 3.8, 3.141592653589793, 0.035, -0.025, 0.007, -0.0015]
+            [
+                3.3,
+                5.5,
+                2.4,
+                3.8,
+                3.141592653589793,
+                0.035,
+                -0.025,
+                0.007,
+                -0.0015,
+                0.00023,
+                -0.00027,
+            ]
         )
 
         # Test retract is correct
         np.testing.assert_allclose(
             second_cam_cal.retract(vec=tangent, epsilon=1e-08).to_storage(),
-            [4.3, 7.5, 5.4, 7.8, 6.283185307179586, 0.07, -0.05, 0.014, -0.003],
+            [4.3, 7.5, 5.4, 7.8, 6.283185307179586, 0.07, -0.05, 0.014, -0.003, 0.00046, -0.00054],
         )
 
         # Test local_coordinates is correct
         np.testing.assert_allclose(
             second_cam_cal.local_coordinates(cam_cal, epsilon=1e-08),
             np.array(
-                [-2.3, -3.5, 0.6000000000000001, 0.20000000000000018, 0.0, 0.0, 0.0, 0.0, 0.0]
+                [
+                    -2.3,
+                    -3.5,
+                    0.6000000000000001,
+                    0.20000000000000018,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                ]
             ),
         )
 
-    def test_pixel_from_camera_point_SphericalCameraCal(self):
-        # type: () -> None
-
+    def test_pixel_from_camera_point_SphericalCameraCal(self) -> None:
         # NOTE(brad): The magic numbers come from the jinja template, and are the outputs
         # of the symbolic class's methods.
 
         cam_cal = sym.SphericalCameraCal.from_storage(
-            [1.0, 2.0, 3.0, 4.0, 3.141592653589793, 0.035, -0.025, 0.007, -0.0015]
+            [
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                3.141592653589793,
+                0.035,
+                -0.025,
+                0.007,
+                -0.0015,
+                0.00023,
+                -0.00027,
+            ]
         )
         point = np.array([0.6, 0.8, 0.2])
 
         pixel, is_valid = cam_cal.pixel_from_camera_point(point=point, epsilon=1e-08)
 
-        np.testing.assert_allclose(pixel, np.array([3.82821053086175, 6.20856141563133]))
+        np.testing.assert_allclose(pixel, np.array([3.82847042313402, 6.20705693661234]))
         self.assertEqual(is_valid, 1.0)
 
-        (
-            j_pixel,
-            j_is_valid,
-            pixel_D_cal,
-            pixel_D_point,
-        ) = cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        j_pixel, j_is_valid, pixel_D_cal, pixel_D_point = (
+            cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        )
 
-        np.testing.assert_allclose(j_pixel, np.array([3.82821053086175, 6.20856141563133]))
+        np.testing.assert_allclose(j_pixel, np.array([3.82847042313402, 6.20705693661234]))
         self.assertEqual(j_is_valid, 1.0)
-        self.assertEqual(pixel_D_cal.shape, (2, 8))
+        self.assertEqual(pixel_D_cal.shape, (2, 10))
+        self.assertEqual(pixel_D_point.shape, (2, 3))
+
+    def test_getters_OrthographicCameraCal(self) -> None:
+        focal_length = [1.0, 2.0]
+        principal_point = [3.0, 4.0]
+        cam_cal = self.cam_cal_from_points(
+            sym.OrthographicCameraCal, focal_length=focal_length, principal_point=principal_point
+        )
+
+        np.testing.assert_array_equal(np.array(focal_length), cam_cal.focal_length())
+        np.testing.assert_array_equal(np.array(principal_point), cam_cal.principal_point())
+
+        with self.subTest("Getters are compatible with the constructor"):
+            new_cam_cal = self.cam_cal_from_points(
+                sym.OrthographicCameraCal,
+                focal_length=cam_cal.focal_length(),
+                principal_point=cam_cal.principal_point(),
+            )
+            self.assertEqual(cam_cal.data, new_cam_cal.data)
+            for x in new_cam_cal.data:
+                self.assertIsInstance(x, float)
+
+    def test_storage_ops_OrthographicCameraCal(self) -> None:
+        cam_cal = self.cam_cal_from_points(
+            sym.OrthographicCameraCal, focal_length=[1.0, 2.0], principal_point=[3.0, 4.0]
+        )
+        storage = cam_cal.to_storage()
+
+        self.assertEqual(cam_cal.storage_dim(), 4)
+        self.assertEqual(len(storage), 4)
+
+        cam_cal_copy = sym.OrthographicCameraCal.from_storage(storage)
+
+        self.assertEqual(cam_cal, cam_cal_copy)
+
+        cam_cal_different = sym.OrthographicCameraCal.from_storage([x + 1 for x in storage])
+
+        self.assertNotEqual(cam_cal, cam_cal_different)
+
+    def test_lie_group_ops_OrthographicCameraCal(self) -> None:
+        # NOTE(brad): The magic numbers come from the jinja template, and are the outputs of
+        # of the symbolic class's methods.
+        cam_cal = sym.OrthographicCameraCal.from_storage([1.0, 2.0, 3.0, 4.0])
+
+        tangent = cam_cal.to_tangent(epsilon=1e-08)
+
+        # Test tangent_dim is correct
+        self.assertEqual(cam_cal.tangent_dim(), 4)
+
+        # Test to_tangent is correct
+        np.testing.assert_allclose(tangent, np.array([1.0, 2.0, 3.0, 4.0]))
+
+        # Test from_tangent is correct
+        np.testing.assert_allclose(
+            sym.OrthographicCameraCal.from_tangent(vec=tangent, epsilon=1e-08).to_storage(),
+            [1.0, 2.0, 3.0, 4.0],
+        )
+
+        second_cam_cal = sym.OrthographicCameraCal.from_storage([3.3, 5.5, 2.4, 3.8])
+
+        # Test retract is correct
+        np.testing.assert_allclose(
+            second_cam_cal.retract(vec=tangent, epsilon=1e-08).to_storage(), [4.3, 7.5, 5.4, 7.8]
+        )
+
+        # Test local_coordinates is correct
+        np.testing.assert_allclose(
+            second_cam_cal.local_coordinates(cam_cal, epsilon=1e-08),
+            np.array([-2.3, -3.5, 0.6000000000000001, 0.20000000000000018]),
+        )
+
+    def test_pixel_from_camera_point_OrthographicCameraCal(self) -> None:
+        # NOTE(brad): The magic numbers come from the jinja template, and are the outputs
+        # of the symbolic class's methods.
+
+        cam_cal = sym.OrthographicCameraCal.from_storage([1.0, 2.0, 3.0, 4.0])
+        point = np.array([0.6, 0.8, 0.2])
+
+        pixel, is_valid = cam_cal.pixel_from_camera_point(point=point, epsilon=1e-08)
+
+        np.testing.assert_allclose(pixel, np.array([3.6, 5.6]))
+        self.assertEqual(is_valid, 1.0)
+
+        j_pixel, j_is_valid, pixel_D_cal, pixel_D_point = (
+            cam_cal.pixel_from_camera_point_with_jacobians(point=point, epsilon=1e-08)
+        )
+
+        np.testing.assert_allclose(j_pixel, np.array([3.6, 5.6]))
+        self.assertEqual(j_is_valid, 1.0)
+        self.assertEqual(pixel_D_cal.shape, (2, 4))
         self.assertEqual(pixel_D_point.shape, (2, 3))
 
 

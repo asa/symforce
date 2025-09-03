@@ -6,6 +6,7 @@
 import logging
 
 import numpy as np
+import numpy.typing as npt
 
 import symforce.symbolic as sf
 from symforce import logger
@@ -211,7 +212,9 @@ class GeoRot3Test(LieGroupOpsTestMixin, TestCase):
             Ps_rotated = [e.evalf() * P for e in elements]
 
             # Compute angles and check basic stats
-            angles = np.array([sf.acos(P.dot(P_rot)) for P_rot in Ps_rotated], dtype=np.float64)
+            angles: npt.NDArray[np.float64] = np.array(
+                [sf.acos(P.dot(P_rot)) for P_rot in Ps_rotated], dtype=np.float64
+            )
             self.assertLess(np.min(angles), 0.3)
             self.assertGreater(np.max(angles), np.pi - 0.3)
             self.assertStorageNear(np.mean(angles), np.pi / 2, places=1)
@@ -223,7 +226,7 @@ class GeoRot3Test(LieGroupOpsTestMixin, TestCase):
             # Plot the sphere to show uniform distribution
             if logger.level == logging.DEBUG and self.verbose:
                 import matplotlib.pyplot as plt
-                from mpl_toolkits.mplot3d import Axes3D  # pylint: disable=unused-import
+                from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
                 fig = plt.figure()
                 ax = fig.add_subplot(111, projection="3d")
@@ -240,10 +243,10 @@ class GeoRot3Test(LieGroupOpsTestMixin, TestCase):
         """
         element = self.element()
         dim = LieGroupOps.tangent_dim(element)
-        pertubation = list(np.random.normal(scale=0.1, size=(dim,)))
+        perturbation = list(np.random.normal(scale=0.1, size=(dim,)))
 
         # Compute the hat matrix
-        hat = sf.M(element.hat(pertubation))
+        hat = sf.M(element.hat(perturbation))
 
         # Take the matrix exponential (only supported with sympy)
         import sympy
@@ -251,7 +254,7 @@ class GeoRot3Test(LieGroupOpsTestMixin, TestCase):
         hat_exp = sf.M(sympy.expand(sympy.exp(sympy.S(hat.mat))))
 
         # As a comparison, take the exponential map and convert to a matrix
-        expmap = sf.Rot3.from_tangent(pertubation, epsilon=self.EPSILON)
+        expmap = sf.Rot3.from_tangent(perturbation, epsilon=self.EPSILON)
         matrix_expected = expmap.to_rotation_matrix()
 
         # They should match!

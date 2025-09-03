@@ -36,7 +36,6 @@ class LieGroupOps(GroupOps):
     differentiable chart.
 
     References:
-
         * https://en.wikipedia.org/wiki/Manifold
         * https://en.wikipedia.org/wiki/Differentiable_manifold
         * https://en.wikipedia.org/wiki/Lie_group
@@ -95,7 +94,7 @@ class LieGroupOps(GroupOps):
         Applies a tangent space perturbation vec to the group element a. Often used in optimization
         to update nonlinear values from an update step in the tangent space.
 
-        Implementation is simply `compose(a, from_tangent(vec))`.
+        Implementation is simply ``compose(a, from_tangent(vec))``.
 
         Args:
             a:
@@ -115,7 +114,7 @@ class LieGroupOps(GroupOps):
         Computes a tangent space perturbation around a to produce b. Often used in optimization
         to minimize the distance between two group elements.
 
-        Implementation is simply `to_tangent(between(a, b))`.
+        Implementation is simply ``to_tangent(between(a, b))``.
 
         Args:
             a:
@@ -152,13 +151,46 @@ class LieGroupOps(GroupOps):
         )
 
     @staticmethod
-    def storage_D_tangent(a: T.Element) -> geo.Matrix:
+    def jacobian(
+        a: T.Element, b: T.Element, tangent_space: bool = True, epsilon: sf.Scalar = sf.epsilon()
+    ) -> geo.Matrix:
+        """
+        Computes the jacobian of a with respect to b
+
+        If tangent_space is True, the jacobian is computed in the local coordinates of the tangent
+        spaces around self and X. If tangent_space is False, the jacobian is computed in the storage
+        spaces of self and X.
+
+        See Also:
+            :func:`symforce.jacobian_helpers.tangent_jacobians`
+            :func:`symforce.ops.interfaces.lie_group.LieGroup.jacobian`
+
+        Returns: the jacobian matrix of shape MxN, where M is the dimension of the tangent (or
+            storage) space of a and N is the dimension of the tangent (or storage) space of b.
+        """
+        if tangent_space:
+            from symforce import jacobian_helpers
+
+            return jacobian_helpers.tangent_jacobians(a, [b], epsilon)[0]
+        else:
+            from symforce import geo
+            from symforce import ops
+
+            return geo.Matrix(
+                [
+                    [ai.diff(bi) for bi in ops.StorageOps.to_storage(b)]
+                    for ai in ops.StorageOps.to_storage(a)
+                ]
+            )
+
+    @staticmethod
+    def storage_D_tangent(a: T.Element, epsilon: sf.Scalar = sf.epsilon()) -> geo.Matrix:
         """
         Computes the jacobian of the storage space of an element with respect to the tangent space around
         that element.
         """
         try:
-            return LieGroupOps.implementation(get_type(a)).storage_D_tangent(a)
+            return LieGroupOps.implementation(get_type(a)).storage_D_tangent(a, epsilon)
         except NotImplementedError:
             logger.error(
                 "storage_D_tangent not implemented for {}; use storage_D_tangent.ipynb to compute".format(
@@ -168,13 +200,13 @@ class LieGroupOps(GroupOps):
             raise
 
     @staticmethod
-    def tangent_D_storage(a: T.Element) -> geo.Matrix:
+    def tangent_D_storage(a: T.Element, epsilon: sf.Scalar = sf.epsilon()) -> geo.Matrix:
         """
         Computes the jacobian of the tangent space around an element with respect to the storage space of
         that element.
         """
         try:
-            return LieGroupOps.implementation(get_type(a)).tangent_D_storage(a)
+            return LieGroupOps.implementation(get_type(a)).tangent_D_storage(a, epsilon)
         except NotImplementedError:
             logger.error(
                 "tangent_D_storage not implemented for {}; use tangent_D_storage.ipynb to compute".format(

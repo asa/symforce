@@ -18,11 +18,11 @@ from .matrix import Vector2
 
 class Rot2(LieGroup):
     """
-    Group of two-dimensional orthogonal matrices with determinant +1, representing rotations
+    Group of two-dimensional orthogonal matrices with determinant ``+1``, representing rotations
     in 2D space. Backed by a complex number.
     """
 
-    def __init__(self, z: Complex = None) -> None:
+    def __init__(self, z: T.Optional[Complex] = None) -> None:
         """
         Construct from a unit complex number, or identity if none provided.
 
@@ -93,17 +93,17 @@ class Rot2(LieGroup):
         theta = vec[0]
         return Matrix22([[0, -theta], [theta, 0]])
 
-    def storage_D_tangent(self) -> Matrix21:
+    def storage_D_tangent(self, epsilon: T.Scalar = sf.epsilon()) -> Matrix21:
         """
-        Note: generated from symforce/notebooks/storage_D_tangent.ipynb
+        Note: generated from ``symforce/notebooks/storage_D_tangent.ipynb``
         """
         return Matrix21([[-self.z.imag], [self.z.real]])
 
-    def tangent_D_storage(self) -> Matrix12:
+    def tangent_D_storage(self, epsilon: sf.Scalar = sf.epsilon()) -> Matrix12:
         """
-        Note: generated from symforce/notebooks/tangent_D_storage.ipynb
+        Note: generated from ``symforce/notebooks/tangent_D_storage.ipynb``
         """
-        return T.cast(Matrix12, self.storage_D_tangent().T)
+        return T.cast(Matrix12, self.storage_D_tangent(epsilon).T)
 
     # -------------------------------------------------------------------------
     # Helper methods
@@ -131,17 +131,38 @@ class Rot2(LieGroup):
     @classmethod
     def from_angle(cls, theta: T.Scalar) -> Rot2:
         """
-        Create a Rot2 from an angle `theta` in radians
+        Create a Rot2 from an angle ``theta`` in radians
 
-        This is equivalent to from_tangent([theta])
+        This is equivalent to ``from_tangent([theta])``
         """
         return cls.from_tangent([theta])
+
+    def to_angle(self, epsilon: T.Scalar = sf.epsilon()) -> T.Scalar:
+        """
+        Get the angle of this Rot2 in radians
+
+        This is equivalent to ``to_tangent()[0]``
+        """
+        return self.to_tangent(epsilon)[0]
 
     def to_rotation_matrix(self) -> Matrix22:
         """
         A matrix representation of this element in the Euclidean space that contains it.
         """
         return Matrix22([[self.z.real, -self.z.imag], [self.z.imag, self.z.real]])
+
+    @classmethod
+    def from_rotation_matrix(cls, r: Matrix22) -> Rot2:
+        """
+        Create a Rot2 from a 2x2 rotation matrix.
+
+        Returns the closest Rot2 to the input matrix, by the Frobenius norm.  Will be singular when
+        ``r[0, 0] == -r[1, 1]`` and ``r[0, 1] == r[1, 0]`` are both true.
+
+        See notebooks/rot2_from_rotation_matrix_derivation.ipynb for the derivation.
+        """
+        denominator = sf.sqrt((r[0, 0] + r[1, 1]) ** 2 + (r[0, 1] - r[1, 0]) ** 2)
+        return cls(Complex((r[0, 0] + r[1, 1]) / denominator, (r[1, 0] - r[0, 1]) / denominator))
 
     @classmethod
     def random(cls) -> Rot2:

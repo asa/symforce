@@ -4,17 +4,19 @@
 # Do NOT modify by hand.
 # -----------------------------------------------------------------------------
 
+# ruff: noqa: PLR0915, F401, PLW0211, PLR0914
+
 import math
 import typing as T
 
 import numpy
 
-import sym  # pylint: disable=unused-import
+import sym
 
 
 class GroupOps(object):
     """
-    Python GroupOps implementation for <class 'symforce.geo.rot3.Rot3'>.
+    Python GroupOps implementation for :py:class:`symforce.geo.rot3.Rot3`.
     """
 
     @staticmethod
@@ -106,7 +108,7 @@ class GroupOps(object):
         # Intermediate terms (13)
         _tmp0 = _a[2] ** 2
         _tmp1 = _a[0] ** 2
-        _tmp2 = -_a[3] ** 2
+        _tmp2 = -(_a[3] ** 2)
         _tmp3 = _a[1] ** 2
         _tmp4 = _tmp2 + _tmp3
         _tmp5 = 2 * _a[2]

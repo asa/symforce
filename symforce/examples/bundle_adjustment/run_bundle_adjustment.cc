@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <sym/factors/between_factor_pose3.h>
+#include <sym/factors/inverse_range_landmark_linear_gnc_factor.h>
 #include <sym/factors/inverse_range_landmark_linear_reprojection_error_factor.h>
 #include <sym/factors/inverse_range_landmark_double_sphere_reprojection_error_factor.h>
 #include <sym/factors/inverse_range_landmark_prior_factor.h>
@@ -46,6 +47,29 @@ sym::Factord CreateInverseRangeLandmarkPriorFactor(const int i, const int landma
                                 {Var::LANDMARK_PRIOR_SIGMA, i, landmark_idx},
                                 Var::EPSILON},
                                {{Var::LANDMARK, landmark_idx}});
+}
+
+/**
+ * Creates a factor for a reprojection error residual of landmark landmark_idx projected into view i
+ */
+sym::Factord CreateInverseRangeLandmarkGncFactor(const int i, const int landmark_idx) {
+  return sym::Factord::Hessian(sym::InverseRangeLandmarkLinearGncFactor<double>,
+                               {{Var::VIEW, 0},
+                                {Var::CALIBRATION, 0},
+                                {Var::VIEW, i},
+                                {Var::CALIBRATION, i},
+                                {Var::LANDMARK, landmark_idx},
+                                {Var::MATCH_SOURCE_COORDS, i, landmark_idx},
+                                {Var::MATCH_TARGET_COORDS, i, landmark_idx},
+                                {Var::MATCH_WEIGHT, i, landmark_idx},
+                                Var::GNC_MU,
+                                Var::GNC_SCALE,
+                                Var::EPSILON},
+                               {
+                                   {Var::VIEW, 0},
+                                   {Var::VIEW, i},
+                                   {Var::LANDMARK, landmark_idx},
+                               });
 }
 
 /**
@@ -97,7 +121,8 @@ std::vector<sym::Factord> BuildFactors(const BundleAdjustmentProblemParams& para
   // Reprojection errors
   for (int i = 1; i < params.num_views; i++) {
     for (int landmark_idx = 0; landmark_idx < params.num_landmarks; landmark_idx++) {
-      factors.push_back(CreateInverseRangeLandmarkReprojectionErrorFactor(i, landmark_idx));
+      	factors.push_back(CreateInverseRangeLandmarkReprojectionErrorFactor(i, landmark_idx));     
+	factors.push_back(CreateInverseRangeLandmarkGncFactor(i, landmark_idx));
     }
   }
 
@@ -151,11 +176,11 @@ void RunBundleAdjustment() {
 
   const sym::optimizer_params_t optimizer_params = sym::example_utils::OptimizerParams();
 
-  sym::Optimizerd optimizer(optimizer_params, factors, params.epsilon, "BundleAdjustmentOptimizer",
-                            optimized_keys, params.debug_stats, params.check_derivatives);
+  sym::Optimizerd optimizer(optimizer_params, factors, "BundleAdjustmentOptimizer", optimized_keys,
+                            params.epsilon);
 
   // Optimize
-  const sym::OptimizationStatsd stats = optimizer.Optimize(values);
+  const sym::Optimizerd::Stats stats = optimizer.Optimize(values);
 
   // Print out results
   spdlog::info("Optimized State:");
@@ -184,9 +209,11 @@ void RunBundleAdjustment() {
   spdlog::info("Lambda: {}", last_iter.current_lambda);
   spdlog::info("Initial error: {}", first_iter.new_error);
   spdlog::info("Final error: {}", best_iter.new_error);
+  spdlog::info("Status: {}", stats.status);
 
   // Check successful convergence
   SYM_ASSERT(best_iter.new_error < 10);
+  SYM_ASSERT(stats.status == sym::optimization_status_t::SUCCESS);
 }
 
 }  // namespace bundle_adjustment

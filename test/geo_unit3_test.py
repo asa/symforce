@@ -17,6 +17,9 @@ class GeoUnit3Test(LieGroupOpsTestMixin, TestCase):
     Note the mixin that tests all storage, group and lie group ops.
     """
 
+    MANIFOLD_IS_DEFINED_IN_TERMS_OF_GROUP_OPS = False
+    VALID_GROUP = False
+
     def setUp(self) -> None:
         super().setUp()
         self.test_directions = self.make_test_directions()
@@ -25,7 +28,8 @@ class GeoUnit3Test(LieGroupOpsTestMixin, TestCase):
     def element(cls) -> sf.Unit3:
         return sf.Unit3.from_vector(sf.V3(0, 1, 0))
 
-    def make_test_directions(self) -> T.List[sf.V3]:
+    @staticmethod
+    def make_test_directions() -> T.List[sf.V3]:
         """
         Get a list of fixed and random directions for testing
         """
@@ -49,13 +53,6 @@ class GeoUnit3Test(LieGroupOpsTestMixin, TestCase):
 
         return directions
 
-    def test_default_constructor(self) -> None:
-        """
-        Tests:
-            Unit3.__init__
-        """
-        self.assertEqual(sf.Unit3(), sf.Unit3.identity())
-
     def test_symbolic_substitution(self) -> None:
         """
         Tests:
@@ -63,11 +60,14 @@ class GeoUnit3Test(LieGroupOpsTestMixin, TestCase):
         """
         u1 = sf.Unit3.symbolic("u_1")
         u2 = sf.Unit3.symbolic("u_2")
+        base = sf.Unit3.symbolic("base")
         self.assertEqual(u2, u1.subs(u1, u2))
-        self.assertEqual(sf.M(u2.to_tangent()), sf.M(u1.to_tangent()).subs(u1, u2))
         self.assertEqual(
-            sf.Unit3.from_tangent(u2.to_tangent()),
-            sf.Unit3.from_tangent(u1.to_tangent()).subs(u1, u2),
+            sf.M(base.local_coordinates(u2)), sf.M(base.local_coordinates(u1)).subs(u1, u2)
+        )
+        self.assertEqual(
+            base.retract(sf.M(base.local_coordinates(u2)).to_flat_list()),
+            base.retract(sf.M(base.local_coordinates(u1)).subs(u1, u2).to_flat_list()),
         )
 
     def test_from_vector(self) -> None:

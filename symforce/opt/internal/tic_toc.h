@@ -3,14 +3,11 @@
  * This source code is under the Apache 2.0 license found in the LICENSE file.
  * ---------------------------------------------------------------------------- */
 
-#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <mutex>
 #include <string>
-#include <thread>
 #include <unordered_map>
-#include <vector>
 
 namespace sym {
 namespace internal {
@@ -70,7 +67,7 @@ class ThreadContext {
 class TicTocManager {
  public:
   TicTocManager();
-  ~TicTocManager();
+  ~TicTocManager() noexcept;
 
   // Create string with results of all tic tocs.
   void PrintTimingResults(std::ostream& out = std::cout) const;

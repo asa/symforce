@@ -4,17 +4,19 @@
 # Do NOT modify by hand.
 # -----------------------------------------------------------------------------
 
+# ruff: noqa: PLR0915, F401, PLW0211, PLR0914
+
 import math
 import typing as T
 
 import numpy
 
-import sym  # pylint: disable=unused-import
+import sym
 
 
 class LieGroupOps(object):
     """
-    Python LieGroupOps implementation for <class 'symforce.cam.equirectangular_camera_cal.EquirectangularCameraCal'>.
+    Python LieGroupOps implementation for :py:class:`symforce.cam.equirectangular_camera_cal.EquirectangularCameraCal`.
     """
 
     @staticmethod

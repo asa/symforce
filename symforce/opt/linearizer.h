@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <Eigen/Sparse>
+#include <Eigen/SparseCore>
 
 #include <lcmtypes/sym/linearization_dense_factor_helper_t.hpp>
 #include <lcmtypes/sym/linearization_sparse_factor_helper_t.hpp>
@@ -23,7 +23,7 @@ namespace sym {
  * Stores the original Factors as well as the LinearizedFactors, and provides tools for
  * aggregating keys and building a large jacobian / hessian for optimization.
  *
- * For efficiency, prefer calling Relinearize instead of re-constructing this object!
+ * For efficiency, prefer calling Relinearize() instead of re-constructing this object!
  */
 template <typename ScalarType>
 class Linearizer {
@@ -31,37 +31,41 @@ class Linearizer {
   using Scalar = ScalarType;
   using LinearizedDenseFactor = typename Factor<Scalar>::LinearizedDenseFactor;
   using LinearizedSparseFactor = typename Factor<Scalar>::LinearizedSparseFactor;
+  using LinearizationType = SparseLinearization<Scalar>;
 
   /**
    * Construct a Linearizer from factors and optional keys
    *
-   * Args:
-   *     factors: Only stores a pointer, MUST be in scope for the lifetime of this object!
-   *     key_order: If provided, acts as an ordered set of keys that form the state vector
-   *                to optimize. Can equal the set of all factor keys or a subset of all
-   *                factor keys. If not provided, it is computed from all keys for all
-   *                factors using a default ordering.
+   * @param factors: Only stores a pointer, MUST be in scope for the lifetime of this object!
+   * @param key_order: If provided, acts as an ordered set of keys that form the state vector
+   *    to optimize. Can equal the set of all factor keys or a subset of all factor keys. If not
+   *    provided, it is computed from all keys for all factors using a default ordering.
+   * @param debug_checks: Whether to perform additional sanity checks for NaNs.  This uses
+   *    additional compute but not additional memory except for logging.
    */
   Linearizer(const std::string& name, const std::vector<Factor<Scalar>>& factors,
-             const std::vector<Key>& key_order = {}, bool include_jacobians = false);
+             const std::vector<Key>& key_order = {}, bool include_jacobians = false,
+             bool debug_checks = false);
 
   /**
-   * Update linearization at a new evaluation point.
+   * Update linearization at a new evaluation point
+   *
    * This is more efficient than reconstructing this object repeatedly. On the first call, it will
    * allocate memory and perform analysis needed for efficient repeated relinearization.
    *
    * TODO(aaron): This should be const except that it can initialize the object
    */
-  void Relinearize(const Values<Scalar>& values, Linearization<Scalar>& linearization);
+  void Relinearize(const Values<Scalar>& values, SparseLinearization<Scalar>& linearization);
 
   /**
    * Whether this contains values, versus having not been evaluated yet
    */
   bool IsInitialized() const;
 
-  /**
-   * Basic accessors.
-   */
+  // ----------------------------------------------------------------------------
+  // Basic accessors
+  // ----------------------------------------------------------------------------
+
   const std::vector<LinearizedSparseFactor>& LinearizedSparseFactors() const;
 
   const std::vector<Key>& Keys() const;
@@ -84,11 +88,11 @@ class Linearizer {
   void UpdateFromLinearizedDenseFactorIntoSparse(
       const LinearizedDenseFactor& linearized_factor,
       const linearization_dense_factor_helper_t& factor_helper,
-      Linearization<Scalar>& linearization) const;
+      SparseLinearization<Scalar>& linearization) const;
   void UpdateFromLinearizedSparseFactorIntoSparse(
       const LinearizedSparseFactor& linearized_factor,
       const linearization_sparse_factor_helper_t& factor_helper,
-      Linearization<Scalar>& linearization) const;
+      SparseLinearization<Scalar>& linearization) const;
 
   /**
    * Update the combined residual and rhs, along with triplet lists for the sparse matrices, from a
@@ -108,7 +112,7 @@ class Linearizer {
   /**
    * Check if a Linearization has the correct sizes, and if not, initialize it
    */
-  void EnsureLinearizationHasCorrectSize(Linearization<Scalar>& linearization) const;
+  void EnsureLinearizationHasCorrectSize(SparseLinearization<Scalar>& linearization) const;
 
   bool initialized_{false};
 
@@ -123,6 +127,8 @@ class Linearizer {
   std::vector<std::vector<index_entry_t>> factor_indices_;
 
   bool include_jacobians_;
+
+  bool debug_checks_;
 
   // Linearized factors - stores individual factor residuals, jacobians, etc
   internal::LinearizedDenseFactorPool<Scalar> linearized_dense_factors_;  // one per Jacobian shape
@@ -141,16 +147,18 @@ class Linearizer {
   // Numerical linearization from the very first linearization that is used to initialize new
   // LevenbergMarquardtState::StateBlocks (at most 3 times) and isn't touched on each subsequent
   // relinearization.
-  Linearization<Scalar> init_linearization_;
+  SparseLinearization<Scalar> init_linearization_;
 };
 
-// Free function as an alternate way to call.
+/**
+ * Free function as an alternate way to call the Linearizer
+ */
 template <typename Scalar>
-Linearization<Scalar> Linearize(const std::vector<Factor<Scalar>>& factors,
-                                const Values<Scalar>& values,
-                                const std::vector<Key>& keys_to_optimize = {},
-                                const std::string& linearizer_name = "Linearizer") {
-  Linearization<Scalar> linearization;
+SparseLinearization<Scalar> Linearize(const std::vector<Factor<Scalar>>& factors,
+                                      const Values<Scalar>& values,
+                                      const std::vector<Key>& keys_to_optimize = {},
+                                      const std::string& linearizer_name = "Linearizer") {
+  SparseLinearization<Scalar> linearization;
   Linearizer<Scalar>(linearizer_name, factors, keys_to_optimize).Relinearize(values, linearization);
   return linearization;
 }

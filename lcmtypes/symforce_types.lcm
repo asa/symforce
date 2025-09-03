@@ -25,6 +25,9 @@ enum type_t : int32_t {
   // DataBuffer
   DATABUFFER = 6,
 
+  // Preintegrated IMU measurements
+  PREINTEGRATED_IMU_MEASUREMENTS = 8,
+
   // Vector types, dynamic and fixed
   VECTORX = 10,
   VECTOR1 = 11,
@@ -118,4 +121,5 @@ enum type_t : int32_t {
   LINEAR_CAMERA_CAL = 95,
   POLYNOMIAL_CAMERA_CAL = 96,
   SPHERICAL_CAMERA_CAL = 97,
+  ORTHOGRAPHIC_CAMERA_CAL = 98,
 };

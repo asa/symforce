@@ -4,13 +4,12 @@
 // Do NOT modify by hand.
 // -----------------------------------------------------------------------------
 
-#include "./storage_ops.h"
-
 #include <algorithm>
 #include <cassert>
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
+#include <sym/ops/rot3/storage_ops.h>
 #include <sym/rot3.h>
 
 namespace sym {
@@ -24,7 +23,8 @@ void StorageOps<Rot3<ScalarType>>::ToStorage(const Rot3<ScalarType>& a, ScalarTy
 template <typename ScalarType>
 Rot3<ScalarType> StorageOps<Rot3<ScalarType>>::FromStorage(const ScalarType* data) {
   assert(data != nullptr);
-  return Rot3<ScalarType>(Eigen::Map<const typename Rot3<ScalarType>::DataVec>(data));
+  return Rot3<ScalarType>(Eigen::Map<const typename Rot3<ScalarType>::DataVec>(data),
+                          /* normalize */ false);
 }
 
 }  // namespace sym

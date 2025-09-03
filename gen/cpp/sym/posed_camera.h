@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 #include <sym/camera.h>
 #include <sym/pose3.h>
@@ -15,6 +15,7 @@ namespace sym {
 
 /**
  * Camera with a given pose, camera calibration, and an optionally specified image size.
+ *
  * If the image size is specified, we use it to check whether pixels (either given or computed by
  * projection of 3D points into the image frame) are in the image frame and thus valid/invalid.
  */
@@ -28,7 +29,7 @@ class PosedCamera : public Camera<CameraCalType> {
       : Camera<CameraCalType>(calibration, image_size), pose_(pose) {}
 
   /**
-   * Transforms the given point into the camera frame using the given camera pose and then
+   * Transforms the given point into the camera frame using the given camera pose, and then
    * uses the given camera calibration to compute the resulted pixel coordinates of the
    * projected point.
    *
@@ -36,8 +37,8 @@ class PosedCamera : public Camera<CameraCalType> {
    *     point: Vector written in camera frame.
    *     epsilon: Small value intended to prevent division by 0.
    *
-   * Return:
-   *     pixel: UV coodinates in pixel units, assuming the point is in view
+   * Returns:
+   *     pixel: UV coordinates in pixel units, assuming the point is in view
    *     is_valid: 1 if point is valid
    *
    */
@@ -59,7 +60,7 @@ class PosedCamera : public Camera<CameraCalType> {
    *     range_to_point: Distance of the returned point along the ray passing through pixel
    *     epsilon: Small value intended to prevent division by 0.
    *
-   * Return:
+   * Returns:
    *     global_point: The point in the global frame.
    *     is_valid: 1 if point is valid
    *
@@ -82,7 +83,7 @@ class PosedCamera : public Camera<CameraCalType> {
    *     inverse_range: Inverse distance along the ray to the global point
    *     target_cam: Camera to project global point into
    *
-   * Return:
+   * Returns:
    *     pixel: Pixel in the target camera
    *     is_valid: 1 if given point is valid in source camera and target camera
    *

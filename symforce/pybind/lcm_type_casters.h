@@ -5,26 +5,18 @@
 
 // -----------------------------------------------------------------------------
 // Defines template specializations of pybind11::detail::type_caster<T> for
-// various lcm types.
+// lcm types.
 //
 // Must be included in any file using pybind11 to wrap functions whose argument
 // types or return types are any of specialized lcm types.
 // -----------------------------------------------------------------------------
 
+// IWYU pragma: always_keep
+
 #pragma once
 
 #include <fmt/format.h>
 #include <pybind11/pybind11.h>
-
-#include <lcmtypes/sym/index_entry_t.hpp>
-#include <lcmtypes/sym/index_t.hpp>
-#include <lcmtypes/sym/key_t.hpp>
-#include <lcmtypes/sym/linearized_dense_factor_t.hpp>
-#include <lcmtypes/sym/optimization_iteration_t.hpp>
-#include <lcmtypes/sym/optimization_stats_t.hpp>
-#include <lcmtypes/sym/optimizer_params_t.hpp>
-#include <lcmtypes/sym/type_t.hpp>
-#include <lcmtypes/sym/values_t.hpp>
 
 namespace py = pybind11;
 
@@ -32,8 +24,12 @@ namespace pybind11 {
 namespace detail {
 
 template <typename LCMType>
-struct lcm_type_caster {
-  PYBIND11_TYPE_CASTER(LCMType, _(*LCMType::getTypeNameArrayPtr()));
+struct type_caster<
+    LCMType, enable_if_t<std::is_same<decltype(LCMType::getTypeName()), const char*>::value>> {
+  PYBIND11_TYPE_CASTER(LCMType, const_name("lcmtypes.") +
+                                    const_name(*LCMType::getPackageNameArrayPtr()) +
+                                    const_name("._") + const_name(*LCMType::getTypeNameArrayPtr()) +
+                                    const_name(".") + const_name(*LCMType::getTypeNameArrayPtr()));
 
   bool load(const handle src, bool /* implicit_conversion */) {
     // Converts src (a thin wrapper of a PyObject*) to a T, and assigns to value (a member of the
@@ -71,34 +67,9 @@ struct lcm_type_caster {
     const py::object lcm_py_type =
         py::module_::import(module_path.c_str()).attr(LCMType::getTypeName());
     py::object result = lcm_py_type.attr("decode")(msg_bytes);
-    result.inc_ref();
-    return std::move(result);
+    return result.release();
   }
 };
-
-// Defining type_caster<T> for the lcm types
-template <>
-struct type_caster<sym::index_entry_t> : public lcm_type_caster<sym::index_entry_t> {};
-template <>
-struct type_caster<sym::index_t> : public lcm_type_caster<sym::index_t> {};
-template <>
-struct type_caster<sym::key_t> : public lcm_type_caster<sym::key_t> {};
-template <>
-struct type_caster<sym::linearized_dense_factor_t>
-    : public lcm_type_caster<sym::linearized_dense_factor_t> {};
-template <>
-struct type_caster<sym::optimization_iteration_t>
-    : public lcm_type_caster<sym::optimization_iteration_t> {};
-template <>
-struct type_caster<sym::sparse_matrix_structure_t>
-    : public lcm_type_caster<sym::sparse_matrix_structure_t> {};
-template <>
-struct type_caster<sym::optimization_stats_t> : public lcm_type_caster<sym::optimization_stats_t> {
-};
-template <>
-struct type_caster<sym::optimizer_params_t> : public lcm_type_caster<sym::optimizer_params_t> {};
-template <>
-struct type_caster<sym::values_t> : public lcm_type_caster<sym::values_t> {};
 
 }  // namespace detail
 }  // namespace pybind11

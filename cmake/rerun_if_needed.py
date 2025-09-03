@@ -11,6 +11,7 @@ stamp file
 
 For builds not in a git repo, we just run the command every time.
 """
+
 from __future__ import print_function
 
 import argparse
@@ -48,7 +49,7 @@ DEBUG_GIT_HASHES = int(os.environ.get("DEBUG_GIT_HASHES", "0"))
 
 
 def _get_hashes(
-    relative_path: str, cwd: str = None, env: T.Mapping[str, str] = None
+    relative_path: str, cwd: T.Optional[str] = None, env: T.Optional[T.Mapping[str, str]] = None
 ) -> T.Tuple[str, str]:
     if relative_path == ".":
         # Getting tree hash of root is not allowed unless it's clear that it's a directory to git.
@@ -72,7 +73,7 @@ def _get_hashes(
     return tree_hash, diff_index
 
 
-def get_path_git_hash(path_to_check: str, repo_root: str = None) -> str:
+def get_path_git_hash(path_to_check: str, repo_root: T.Optional[str] = None) -> str:
     """
     "hash" check for a path stored under git that combines the
     path's "tree hash" and the output of diff-index.
@@ -120,7 +121,7 @@ def get_path_git_hash(path_to_check: str, repo_root: str = None) -> str:
 
 
 def check_path_git_hash(
-    path_to_check: str, stamp_file: str, version: str = None
+    path_to_check: str, stamp_file: str, version: T.Optional[str] = None
 ) -> T.Tuple[bool, T.Optional[str]]:
     """
     Check the path for whether its contents have changed since the stamp_file was written.
@@ -135,7 +136,7 @@ def check_path_git_hash(
         # Note: this doesn't work for builds not in a git repo.  This also might not work if we're
         # included as a submodule in another git repo?  So if this fails, just always rebuild
         # https://stackoverflow.com/a/957978
-        repo_root = get_output(["git", "rev-parse", "--show-toplevel"])
+        repo_root = get_output(["git", "rev-parse", "--show-toplevel"], cwd=path_to_check)
     except subprocess.CalledProcessError as ex:
         if ex.returncode == 128:  # Code for "not a git repository"
             return (False, None)
@@ -172,6 +173,7 @@ def main() -> None:
         description="Check whether the given path has changed "
         "(according to git), and (re)run the command if necessary"
     )
+    parser.add_argument("-n", "--name", help="Project name", required=True)
     parser.add_argument(
         "-p",
         "--path_to_check",
@@ -189,7 +191,11 @@ def main() -> None:
     if need_to_run:
         for path in Path(args.cmake_stampdir).iterdir():
             # This file is not recreated by cmake on rebuilds and is not a stamp
-            if path.name.endswith("-source_dirinfo.txt"):
+            if path.name in {
+                f"{args.name}-source_dirinfo.txt",
+                f"{args.name}-patch-info.txt",
+                f"{args.name}-update-info.txt",
+            }:
                 continue
 
             # Newer versions of cmake create empty directories in here at configure time, but

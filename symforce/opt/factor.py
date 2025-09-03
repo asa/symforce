@@ -28,8 +28,8 @@ class Factor:
     """
     A class used to represent symbolic factors as used in a factor graph. The factor is typically
     constructed from either a function or from a symbolic expression using
-    `Factor.from_inputs_and_residual()`. A linearization function can be generated from the factor
-    using `generate()` which can be used in a larger optimization.
+    :meth:`from_inputs_and_residual`. A linearization function can be generated from the
+    factor using :meth:`generate` which can be used in a larger optimization.
 
     Args:
         keys: The set of variables that are inputs to the factor. These should be in order of
@@ -37,8 +37,7 @@ class Factor:
         residual: The residual function for the factor. When passed symbolic inputs, this should
             return a symbolic expression for the residual.
         config: The language the numeric factor will be generated in. Defaults to Python, which
-            does not require any compilation. Also does not autoformat by default in order to
-            speed up code generation.
+            does not require any compilation.
         custom_jacobian_func: A functor that computes the jacobian, typically unnecessary unless
             you want to override the jacobian computed by SymForce, e.g. to stop derivatives
             with respect to certain variables or directions, or because the jacobian can be
@@ -47,7 +46,8 @@ class Factor:
             a function that takes the set of optimized keys, and returns the jacobian of the
             residual with respect to those keys.
         kwargs: Any other arguments to be passed to the codegen object used to generate the
-            numeric factor. See `Codegen.function()` for details.
+            numeric factor. See :meth:`Codegen.function <symforce.codegen.codegen.Codegen.function>`
+            for details.
     """
 
     _generated_residual_cache = GeneratedResidualCache()
@@ -57,20 +57,17 @@ class Factor:
         """
         The default codegen config used by the Factor class
 
-        This is a PythonConfig with settings appropriate for converting to a NumericFactor (no
-        autoformat, return 2d vectors)
+        This is a PythonConfig with settings appropriate for converting to a
+        :class:`.numeric_factor.NumericFactor` (returns 2d vectors).
         """
-        return PythonConfig(
-            render_template_config=codegen_config.RenderTemplateConfig(autoformat=False),
-            return_2d_vectors=True,
-        )
+        return PythonConfig(return_2d_vectors=True)
 
     def __init__(
         self,
         keys: T.Sequence[str],
         residual: T.Callable[..., sf.Matrix],
-        config: codegen_config.CodegenConfig = None,
-        custom_jacobian_func: T.Callable[[T.Iterable[str]], sf.Matrix] = None,
+        config: T.Optional[codegen_config.CodegenConfig] = None,
+        custom_jacobian_func: T.Optional[T.Callable[[T.Iterable[str]], sf.Matrix]] = None,
         **kwargs: T.Any,
     ) -> None:
         # We use `_initialize()` to set `self.codegen` because we want the default constructor of
@@ -93,8 +90,8 @@ class Factor:
         keys: T.Sequence[str],
         inputs: Values,
         residual: sf.Matrix,
-        config: codegen_config.CodegenConfig = None,
-        custom_jacobian_func: T.Callable[[T.Iterable[str]], sf.Matrix] = None,
+        config: T.Optional[codegen_config.CodegenConfig] = None,
+        custom_jacobian_func: T.Optional[T.Callable[[T.Iterable[str]], sf.Matrix]] = None,
         **kwargs: T.Any,
     ) -> Factor:
         """
@@ -103,13 +100,13 @@ class Factor:
 
         Args:
             keys: The set of variables that are inputs to the factor. These should be in order of
-                input Values entries (computed using inputs.keys_recursive()), and are the keys used
-                in the overall optimization problem.
+                input :class:`Values <symforce.values.values.Values>` entries (computed using
+                :func:`inputs.keys_recursive() <symforce.values.values.Values.keys_recursive>`), and
+                are the keys used in the overall optimization problem.
             inputs: The inputs Values for the factor.
             residual: An expression representing the residual of the factor.
             config: The language the numeric factor will be generated in. Defaults to Python, which
-                does not require any compilation. Also does not autoformat by default in order to
-                speed up code generation.
+                does not require any compilation.
             custom_jacobian_func: A functor that computes the jacobian, typically unnecessary unless
                 you want to override the jacobian computed by SymForce, e.g. to stop derivatives
                 with respect to certain variables or directions, or because the jacobian can be
@@ -118,13 +115,13 @@ class Factor:
                 a function that takes the set of optimized keys, and returns the jacobian of the
                 residual with respect to those keys.
             kwargs: Any other arguments to be passed to the codegen object used to generate the
-                numeric factor. See `Codegen.__init__()` for details.
+                numeric factor. See :class:`Codegen <symforce.codegen.codegen.Codegen>` for details.
         """
         if config is None:
             config = cls.default_codegen_config()
 
         instance = cls.__new__(cls)
-        instance._initialize(
+        instance._initialize(  # noqa: SLF001
             keys=keys,
             codegen_obj=Codegen(
                 inputs=inputs, outputs=Values(residual=residual), config=config, **kwargs
@@ -137,7 +134,7 @@ class Factor:
         self,
         keys: T.Sequence[str],
         codegen_obj: Codegen,
-        custom_jacobian_func: T.Callable[[T.Iterable[str]], sf.Matrix] = None,
+        custom_jacobian_func: T.Optional[T.Callable[[T.Iterable[str]], sf.Matrix]] = None,
     ) -> None:
         """
         Initializes the Factor object from a codegen object
@@ -168,19 +165,20 @@ class Factor:
     def generate(
         self,
         optimized_keys: T.Sequence[str],
-        output_dir: T.Openable = None,
-        namespace: str = None,
+        output_dir: T.Optional[T.Openable] = None,
+        namespace: T.Optional[str] = None,
         sparse_linearization: bool = False,
     ) -> T.Dict[str, T.Any]:
         """
-        Generates the code needed to construct a NumericFactor from this Factor.
+        Generates the code needed to construct a :class:`.numeric_factor.NumericFactor` from this
+        Factor.
 
         Args:
             optimized_keys: Keys which we compute the linearization of the residual with respect to.
             output_dir: Where the generated linearization function will be output.
             namespace: Namespace of the generated linearization function.
             sparse_linearization: Whether the generated linearization function should use sparse
-                matricies for the jacobian and hessian approximation
+                matrices for the jacobian and hessian approximation
 
         Returns:
             Dict containing locations where the code was generated (e.g. "output_dir" and
@@ -197,8 +195,6 @@ class Factor:
             else None,
             sparse_linearization=sparse_linearization,
         )
-        # Ignore false positive because we define `self.jacobian` in `_initialize()`
-        # pylint: disable=attribute-defined-outside-init
         self.generated_jacobians[tuple(optimized_keys)] = codegen_with_linearization.outputs[
             "jacobian"
         ]
@@ -215,13 +211,13 @@ class Factor:
     def to_numeric_factor(
         self,
         optimized_keys: T.Sequence[str],
-        output_dir: T.Openable = None,
-        namespace: str = None,
+        output_dir: T.Optional[T.Openable] = None,
+        namespace: T.Optional[str] = None,
         sparse_linearization: bool = False,
     ) -> NumericFactor:
         """
-        Constructs a NumericFactor from this Factor, including generating a linearization
-        function.
+        Constructs a :class:`.numeric_factor.NumericFactor` from this Factor, including generating a
+        linearization function.
 
         Args:
             optimized_keys: Keys which we compute the linearization of the residual with respect to.
@@ -306,7 +302,9 @@ class Factor:
         return numeric_factor
 
 
-def visualize_factors(factors: T.Sequence[Factor], outfile: T.Openable = None) -> graphviz.Graph:
+def visualize_factors(
+    factors: T.Sequence[Factor], outfile: T.Optional[T.Openable] = None
+) -> graphviz.Graph:
     """
     Construct a dot file of the factor graph given by the input set of factors.
 

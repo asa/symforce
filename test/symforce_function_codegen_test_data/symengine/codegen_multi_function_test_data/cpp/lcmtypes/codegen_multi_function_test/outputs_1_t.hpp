@@ -5,13 +5,21 @@
  **/
 
 #include <lcm/lcm_coretypes.h>
+#include <lcm/lcm_cpptypes.hpp>
 
 #ifndef __codegen_multi_function_test_outputs_1_t_hpp__
 #define __codegen_multi_function_test_outputs_1_t_hpp__
 
+#if defined(SKYMARSHAL_PRINTING_ENABLED)
+#include <lcm/lcm_reflection.hpp>
+#include <array>
+#endif
 #include <ostream>
+
 #include <array>
 #include "lcmtypes/codegen_multi_function_test/values_vec_t.hpp"
+#include "lcmtypes/eigen_lcm/Matrix4d.hpp"
+#include "lcmtypes/eigen_lcm/MatrixXd.hpp"
 
 namespace codegen_multi_function_test
 {
@@ -29,6 +37,10 @@ class outputs_1_t
 
         std::array< std::array< ::codegen_multi_function_test::values_vec_t, 1 >, 2 > values_vec_2D_out;
 
+        ::eigen_lcm::MatrixXd big_matrix_from_small_matrix;
+
+        ::eigen_lcm::Matrix4d small_matrix_from_big_matrix;
+
     public:
         outputs_1_t() = default;
 
@@ -40,7 +52,9 @@ class outputs_1_t
             const double& bar_arg,
             const std::array< double, 3 >& scalar_vec_out_arg,
             const std::array< ::codegen_multi_function_test::values_vec_t, 3 >& values_vec_out_arg,
-            const std::array< std::array< ::codegen_multi_function_test::values_vec_t, 1 >, 2 >& values_vec_2D_out_arg
+            const std::array< std::array< ::codegen_multi_function_test::values_vec_t, 1 >, 2 >& values_vec_2D_out_arg,
+            const ::eigen_lcm::MatrixXd& big_matrix_from_small_matrix_arg,
+            const ::eigen_lcm::Matrix4d& small_matrix_from_big_matrix_arg
         );
 
         /**
@@ -75,7 +89,7 @@ class outputs_1_t
          * message type, and is a fingerprint on the message type definition, not on
          * the message contents.
          */
-        inline static int64_t getHash();
+        inline static uint64_t getHash();
 
         using type_name_array_t = const char[12];
 
@@ -85,6 +99,10 @@ class outputs_1_t
          * Returns "outputs_1_t"
          */
         inline static constexpr const char* getTypeName();
+
+        using package_name_array_t = const char[28];
+
+        inline static constexpr package_name_array_t* getPackageNameArrayPtr();
 
         /**
          * Returns "codegen_multi_function_test"
@@ -106,9 +124,11 @@ class outputs_1_t
                     return 0;
             const __lcm_hash_ptr cp = { p, outputs_1_t::getHash };
 
-            uint64_t hash = 0x56da9f927edddf51LL +
+            uint64_t hash = 0xa7f6beb7efb65a6fLL +
                 ::codegen_multi_function_test::values_vec_t::_computeHash(&cp) +
-         ::codegen_multi_function_test::values_vec_t::_computeHash(&cp);
+         ::codegen_multi_function_test::values_vec_t::_computeHash(&cp) +
+         ::eigen_lcm::MatrixXd::_computeHash(&cp) +
+         ::eigen_lcm::Matrix4d::_computeHash(&cp);
 
             return (hash<<1) + ((hash>>63)&1);
         }
@@ -117,35 +137,142 @@ class outputs_1_t
         inline bool operator==(const outputs_1_t& other) const;
         inline bool operator!=(const outputs_1_t& other) const;
 
-        // Ability to print to standard streams as well as the fmt library.
-        friend std::ostream& operator<<(std::ostream& stream, const outputs_1_t& obj) {
 #if defined(SKYMARSHAL_PRINTING_ENABLED)
-            stream << "outputs_1_t(";
-            stream << "foo=" << obj.foo << ", ";
-            stream << "bar=" << obj.bar << ", ";
-            stream << "scalar_vec_out=[";
-            for (size_t i = 0; i < obj.scalar_vec_out.size(); ++i) {
-                stream << obj.scalar_vec_out[i];
-                if (i + 1 < obj.scalar_vec_out.size()) {
-                    stream << ", ";
-                }
-            }
-            stream << "]" << ", ";
-            stream << "values_vec_out=[";
-            for (size_t i = 0; i < obj.values_vec_out.size(); ++i) {
-                stream << obj.values_vec_out[i];
-                if (i + 1 < obj.values_vec_out.size()) {
-                    stream << ", ";
-                }
-            }
-            stream << "]" << ", ";
-            stream << "values_vec_2D_out=<MULTIDIMENSIONAL ARRAY std::array< std::array< ::codegen_multi_function_test::values_vec_t, 1 >, 2 >>";
-            stream << ")";
-#else
-            stream << "<FORMATTING DISABLED>";
-#endif
-            return stream;
+        constexpr static std::array<const char*, 7> fields()
+        {
+            return {{
+                "foo",
+                "bar",
+                "scalar_vec_out",
+                "values_vec_out",
+                "values_vec_2D_out",
+                "big_matrix_from_small_matrix",
+                "small_matrix_from_big_matrix",
+            }};
         }
+
+        // Given a string field path, translate the entire path to field / list indices within this struct.
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field.
+        static uint32_t translate_fields(const char* const _fields[], uint32_t _field_indices_out[], uint32_t _num_fields) {
+            if (strcmp(_fields[0], fields()[0]) == 0) {
+                _field_indices_out[0] = 0;
+                uint32_t ret = lcm::translate_fields<decltype(outputs_1_t::foo)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[1]) == 0) {
+                _field_indices_out[0] = 1;
+                uint32_t ret = lcm::translate_fields<decltype(outputs_1_t::bar)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[2]) == 0) {
+                _field_indices_out[0] = 2;
+                uint32_t ret = lcm::translate_fields<decltype(outputs_1_t::scalar_vec_out)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[3]) == 0) {
+                _field_indices_out[0] = 3;
+                uint32_t ret = lcm::translate_fields<decltype(outputs_1_t::values_vec_out)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[4]) == 0) {
+                _field_indices_out[0] = 4;
+                uint32_t ret = lcm::translate_fields<decltype(outputs_1_t::values_vec_2D_out)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[5]) == 0) {
+                _field_indices_out[0] = 5;
+                uint32_t ret = lcm::translate_fields<decltype(outputs_1_t::big_matrix_from_small_matrix)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[6]) == 0) {
+                _field_indices_out[0] = 6;
+                uint32_t ret = lcm::translate_fields<decltype(outputs_1_t::small_matrix_from_big_matrix)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            return 1;
+
+        }
+
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field.
+        uint32_t show_field(std::ostream& _stream, const uint32_t _field_indices[], uint32_t _num_fields, uint32_t _indent) const
+        {
+            uint32_t ret;
+            switch (_field_indices[0]) {
+                case 0:
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, foo, _indent);
+                return ret == 0 ? ret : ret + 1;
+                case 1:
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, bar, _indent);
+                return ret == 0 ? ret : ret + 1;
+                case 2:
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, scalar_vec_out, _indent);
+                return ret == 0 ? ret : ret + 1;
+                case 3:
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, values_vec_out, _indent);
+                return ret == 0 ? ret : ret + 1;
+                case 4:
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, values_vec_2D_out, _indent);
+                return ret == 0 ? ret : ret + 1;
+                case 5:
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, big_matrix_from_small_matrix, _indent);
+                return ret == 0 ? ret : ret + 1;
+                case 6:
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, small_matrix_from_big_matrix, _indent);
+                return ret == 0 ? ret : ret + 1;
+                default:
+                return 1;
+            }
+        }
+
+        // Ability to print to standard streams as well as the fmt library.
+        friend std::ostream& operator<<(std::ostream& _stream, const outputs_1_t& obj) {
+            lcm::show_field(_stream, nullptr, 0, obj, 0);
+            return _stream;
+        }
+
+#else
+        friend std::ostream& operator<<(std::ostream& _stream, const outputs_1_t& obj) {
+            _stream << "<FORMATTING DISABLED>";
+            return _stream;
+        }
+#endif
+
+#if defined(SKYMARSHAL_STORING_ENABLED)
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field,
+        // 1 + field_size if there are not enough fields, or 2 + field_size if the value is invalid.
+        __attribute__((nodiscard)) uint32_t store_field(const uint32_t _field_indices[], uint32_t _num_fields, const char* const _value)
+        {
+            uint32_t ret;
+            switch (_field_indices[0]) {
+                case 0:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, foo, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 1:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, bar, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 2:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, scalar_vec_out, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 3:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, values_vec_out, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 4:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, values_vec_2D_out, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 5:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, big_matrix_from_small_matrix, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 6:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, small_matrix_from_big_matrix, _value);
+                return ret == 0 ? ret : ret + 1;
+                default:
+                return 1;
+            }
+        }
+#endif
 };
 
 outputs_1_t::outputs_1_t(
@@ -153,19 +280,23 @@ outputs_1_t::outputs_1_t(
     const double& bar_arg,
     const std::array< double, 3 >& scalar_vec_out_arg,
     const std::array< ::codegen_multi_function_test::values_vec_t, 3 >& values_vec_out_arg,
-    const std::array< std::array< ::codegen_multi_function_test::values_vec_t, 1 >, 2 >& values_vec_2D_out_arg
+    const std::array< std::array< ::codegen_multi_function_test::values_vec_t, 1 >, 2 >& values_vec_2D_out_arg,
+    const ::eigen_lcm::MatrixXd& big_matrix_from_small_matrix_arg,
+    const ::eigen_lcm::Matrix4d& small_matrix_from_big_matrix_arg
 ) : foo(foo_arg),
     bar(bar_arg),
     scalar_vec_out(scalar_vec_out_arg),
     values_vec_out(values_vec_out_arg),
-    values_vec_2D_out(values_vec_2D_out_arg) {}
+    values_vec_2D_out(values_vec_2D_out_arg),
+    big_matrix_from_small_matrix(big_matrix_from_small_matrix_arg),
+    small_matrix_from_big_matrix(small_matrix_from_big_matrix_arg) {}
 
 __lcm_buffer_size outputs_1_t::encode(void *buf, __lcm_buffer_size offset, __lcm_buffer_size maxlen) const
 {
     __lcm_buffer_size pos = 0, tlen;
-    int64_t hash = (int64_t)getHash();
+    uint64_t hash = getHash();
 
-    tlen = __int64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
+    tlen = __uint64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if(tlen < 0) return tlen; else pos += tlen;
 
     tlen = this->_encodeNoHash(buf, offset + pos, maxlen - pos);
@@ -178,10 +309,10 @@ __lcm_buffer_size outputs_1_t::decode(const void *buf, __lcm_buffer_size offset,
 {
     __lcm_buffer_size pos = 0, thislen;
 
-    int64_t msg_hash;
-    thislen = __int64_t_decode_array(buf, offset + pos, maxlen - pos, &msg_hash, 1);
+    uint64_t hash;
+    thislen = __uint64_t_decode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if (thislen < 0) return thislen; else pos += thislen;
-    if (msg_hash != getHash()) return -1;
+    if (hash != getHash()) return -1;
 
     thislen = this->_decodeNoHash(buf, offset + pos, maxlen - pos);
     if (thislen < 0) return thislen; else pos += thislen;
@@ -194,9 +325,9 @@ __lcm_buffer_size outputs_1_t::getEncodedSize() const
     return 8 + _getEncodedSizeNoHash();
 }
 
-int64_t outputs_1_t::getHash()
+uint64_t outputs_1_t::getHash()
 {
-    static int64_t hash = _computeHash(NULL);
+    static uint64_t hash = _computeHash(NULL);
     return hash;
 }
 
@@ -209,9 +340,13 @@ constexpr const char* outputs_1_t::getTypeName()
     return *outputs_1_t::getTypeNameArrayPtr();
 }
 
+constexpr outputs_1_t::package_name_array_t* outputs_1_t::getPackageNameArrayPtr() {
+    return &"codegen_multi_function_test";
+}
+
 constexpr const char * outputs_1_t::getPackageName()
 {
-    return "codegen_multi_function_test";
+    return *outputs_1_t::getPackageNameArrayPtr();
 }
 
 __lcm_buffer_size outputs_1_t::_encodeNoHash(void *buf, __lcm_buffer_size offset, __lcm_buffer_size maxlen) const
@@ -238,6 +373,12 @@ __lcm_buffer_size outputs_1_t::_encodeNoHash(void *buf, __lcm_buffer_size offset
             if(tlen < 0) return tlen; else pos += tlen;
         }
     }
+
+    tlen = this->big_matrix_from_small_matrix._encodeNoHash(buf, offset + pos, maxlen - pos);
+    if(tlen < 0) return tlen; else pos += tlen;
+
+    tlen = this->small_matrix_from_big_matrix._encodeNoHash(buf, offset + pos, maxlen - pos);
+    if(tlen < 0) return tlen; else pos += tlen;
 
     return pos;
 }
@@ -267,6 +408,12 @@ __lcm_buffer_size outputs_1_t::_decodeNoHash(const void *buf, __lcm_buffer_size 
         }
     }
 
+    tlen = this->big_matrix_from_small_matrix._decodeNoHash(buf, offset + pos, maxlen - pos);
+    if(tlen < 0) return tlen; else pos += tlen;
+
+    tlen = this->small_matrix_from_big_matrix._decodeNoHash(buf, offset + pos, maxlen - pos);
+    if(tlen < 0) return tlen; else pos += tlen;
+
     return pos;
 }
 
@@ -284,6 +431,8 @@ __lcm_buffer_size outputs_1_t::_getEncodedSizeNoHash() const
             enc_size += this->values_vec_2D_out[a0][a1]._getEncodedSizeNoHash();
         }
     }
+    enc_size += this->big_matrix_from_small_matrix._getEncodedSizeNoHash();
+    enc_size += this->small_matrix_from_big_matrix._getEncodedSizeNoHash();
     return enc_size;
 }
 
@@ -293,7 +442,9 @@ bool outputs_1_t::operator==(const outputs_1_t& other) const {
           (bar==other.bar) && 
           (scalar_vec_out==other.scalar_vec_out) && 
           (values_vec_out==other.values_vec_out) && 
-          (values_vec_2D_out==other.values_vec_2D_out));
+          (values_vec_2D_out==other.values_vec_2D_out) && 
+          (big_matrix_from_small_matrix==other.big_matrix_from_small_matrix) && 
+          (small_matrix_from_big_matrix==other.small_matrix_from_big_matrix));
 }
 
 bool outputs_1_t::operator!=(const outputs_1_t& other) const {

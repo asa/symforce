@@ -10,49 +10,56 @@ import typing as T  # pylint: disable=unused-import
 from io import BytesIO
 import struct
 from lcmtypes.codegen_multi_function_test._values_vec_t import values_vec_t
+from lcmtypes.eigen_lcm._Matrix4d import Matrix4d
+from lcmtypes.eigen_lcm._MatrixXd import MatrixXd
 
 class outputs_1_t(object):
-    __slots__ = ["foo", "bar", "scalar_vec_out", "values_vec_out", "values_vec_2D_out"]  # type: T.List[str]
+    __slots__: T.List[str] = ["foo", "bar", "scalar_vec_out", "values_vec_out", "values_vec_2D_out", "big_matrix_from_small_matrix", "small_matrix_from_big_matrix"]
 
     def __init__(
         self,
-        foo=0.0,  # type: float
-        bar=0.0,  # type: float
-        scalar_vec_out=None,  # type: T.List[float]
-        values_vec_out=None,  # type: T.List[values_vec_t]
-        values_vec_2D_out=None,  # type: T.List[T.List[values_vec_t]]
-        _skip_initialize=False,  # type: bool
-    ):
-        # type: (...) -> None
+        foo: float=0.0,
+        bar: float=0.0,
+        scalar_vec_out: T.Optional[T.List[float]]=None,
+        values_vec_out: T.Optional[T.List[values_vec_t]]=None,
+        values_vec_2D_out: T.Optional[T.List[T.List[values_vec_t]]]=None,
+        big_matrix_from_small_matrix: T.Optional[MatrixXd]=None,
+        small_matrix_from_big_matrix: T.Optional[Matrix4d]=None,
+        _skip_initialize: bool=False,
+    ) -> None:
         """ If _skip_initialize is True, all other constructor arguments are ignored """
         if _skip_initialize:
             return
-        self.foo = foo
-        self.bar = bar
-        self.scalar_vec_out = [ 0.0 for dim0 in range(3) ] if scalar_vec_out is None else scalar_vec_out  # type: T.List[float]
-        self.values_vec_out = [ values_vec_t._default() for dim0 in range(3) ] if values_vec_out is None else values_vec_out  # type: T.List[values_vec_t]
-        self.values_vec_2D_out = [ [ values_vec_t._default() for dim1 in range(1) ] for dim0 in range(2) ] if values_vec_2D_out is None else values_vec_2D_out  # type: T.List[T.List[values_vec_t]]
+        self.foo: float = foo
+        self.bar: float = bar
+        self.scalar_vec_out: T.List[float] = [ 0.0 for dim0 in range(3) ] if scalar_vec_out is None else scalar_vec_out
+        self.values_vec_out: T.List[values_vec_t] = [ values_vec_t._default() for dim0 in range(3) ] if values_vec_out is None else values_vec_out
+        self.values_vec_2D_out: T.List[T.List[values_vec_t]] = [ [ values_vec_t._default() for dim1 in range(1) ] for dim0 in range(2) ] if values_vec_2D_out is None else values_vec_2D_out
+        self.big_matrix_from_small_matrix: MatrixXd = MatrixXd._default() if big_matrix_from_small_matrix is None else big_matrix_from_small_matrix
+        self.small_matrix_from_big_matrix: Matrix4d = Matrix4d._default() if small_matrix_from_big_matrix is None else small_matrix_from_big_matrix
 
     @staticmethod
     def from_all_fields(
-        foo,  # type: float
-        bar,  # type: float
-        scalar_vec_out,  # type: T.List[float]
-        values_vec_out,  # type: T.List[values_vec_t]
-        values_vec_2D_out,  # type: T.List[T.List[values_vec_t]]
-    ):
-        # type: (...) -> outputs_1_t
+        foo: float,
+        bar: float,
+        scalar_vec_out: T.List[float],
+        values_vec_out: T.List[values_vec_t],
+        values_vec_2D_out: T.List[T.List[values_vec_t]],
+        big_matrix_from_small_matrix: MatrixXd,
+        small_matrix_from_big_matrix: Matrix4d,
+    ) -> "outputs_1_t":
         return outputs_1_t(
             foo=foo,
             bar=bar,
             scalar_vec_out=scalar_vec_out,
             values_vec_out=values_vec_out,
             values_vec_2D_out=values_vec_2D_out,
+            big_matrix_from_small_matrix=big_matrix_from_small_matrix,
+            small_matrix_from_big_matrix=small_matrix_from_big_matrix,
         )
 
     @staticmethod
-    def _skytype_meta():
-        # type: () -> T.Dict[str, str]
+    def _skytype_meta() -> T.Dict[str, str]:
         return dict(
             type="struct",
             package="codegen_multi_function_test",
@@ -60,17 +67,14 @@ class outputs_1_t(object):
         )
 
     @classmethod
-    def _default(cls):
-        # type: () -> outputs_1_t
+    def _default(cls) -> "outputs_1_t":
         return cls()
 
-    def __repr__(self):
-        # type: () -> str
+    def __repr__(self) -> str:
         return "outputs_1_t({})".format(
             ", ".join("{}={}".format(name, repr(getattr(self, name))) for name in self.__slots__))
 
-    def __eq__(self, other):
-        # type: (object) -> bool
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, outputs_1_t):
             return NotImplemented
         return (
@@ -78,20 +82,20 @@ class outputs_1_t(object):
             (self.bar==other.bar) and
             (self.scalar_vec_out==other.scalar_vec_out) and
             (self.values_vec_out==other.values_vec_out) and
-            (self.values_vec_2D_out==other.values_vec_2D_out)
+            (self.values_vec_2D_out==other.values_vec_2D_out) and
+            (self.big_matrix_from_small_matrix==other.big_matrix_from_small_matrix) and
+            (self.small_matrix_from_big_matrix==other.small_matrix_from_big_matrix)
         )
     # Disallow hashing for python struct lcmtypes.
-    __hash__ = None  # type: ignore
+    __hash__ = None  # type: ignore[assignment]
 
-    def encode(self):
-        # type: () -> bytes
+    def encode(self) -> bytes:
         buf = BytesIO()
         buf.write(outputs_1_t._get_packed_fingerprint())
         self._encode_one(buf)
         return buf.getvalue()
 
-    def _encode_one(self, buf):
-        # type: (T.BinaryIO) -> None
+    def _encode_one(self, buf: T.BinaryIO) -> None:
         buf.write(outputs_1_t._CACHED_STRUCT_0.pack(self.foo, self.bar))
         buf.write(outputs_1_t._CACHED_STRUCT_1.pack(*self.scalar_vec_out[:3]))
         for i0 in range(3):
@@ -107,10 +111,19 @@ class outputs_1_t(object):
                 else:
                     assert self.values_vec_2D_out[i0][i1]._get_hash_recursive([]) == values_vec_t._get_hash_recursive([])
                 self.values_vec_2D_out[i0][i1]._encode_one(buf)
+        if hasattr(self.big_matrix_from_small_matrix, '_get_packed_fingerprint'):
+            assert self.big_matrix_from_small_matrix._get_packed_fingerprint() == MatrixXd._get_packed_fingerprint()
+        else:
+            assert self.big_matrix_from_small_matrix._get_hash_recursive([]) == MatrixXd._get_hash_recursive([])
+        self.big_matrix_from_small_matrix._encode_one(buf)
+        if hasattr(self.small_matrix_from_big_matrix, '_get_packed_fingerprint'):
+            assert self.small_matrix_from_big_matrix._get_packed_fingerprint() == Matrix4d._get_packed_fingerprint()
+        else:
+            assert self.small_matrix_from_big_matrix._get_hash_recursive([]) == Matrix4d._get_hash_recursive([])
+        self.small_matrix_from_big_matrix._encode_one(buf)
 
     @staticmethod
-    def decode(data):
-        # type: (T.Union[bytes, T.BinaryIO]) -> outputs_1_t
+    def decode(data: T.Union[bytes, T.BinaryIO]) -> "outputs_1_t":
         # NOTE(eric): This function can technically accept either a BinaryIO or
         # anything that supports the C++ Buffer Protocol,
         # which is unspecifiable in type hints.
@@ -126,8 +139,7 @@ class outputs_1_t(object):
         return outputs_1_t._decode_one(buf)
 
     @staticmethod
-    def _decode_one(buf):
-        # type: (T.BinaryIO) -> outputs_1_t
+    def _decode_one(buf: T.BinaryIO) -> "outputs_1_t":
         self = outputs_1_t(_skip_initialize=True)
         self.foo, self.bar = outputs_1_t._CACHED_STRUCT_0.unpack(buf.read(16))
         self.scalar_vec_out = list(outputs_1_t._CACHED_STRUCT_1.unpack(buf.read(24)))
@@ -139,28 +151,27 @@ class outputs_1_t(object):
             self.values_vec_2D_out.append ([])
             for i1 in range(1):
                 self.values_vec_2D_out[i0].append(values_vec_t._decode_one(buf))
+        self.big_matrix_from_small_matrix = MatrixXd._decode_one(buf)
+        self.small_matrix_from_big_matrix = Matrix4d._decode_one(buf)
         return self
 
     @staticmethod
-    def _get_hash_recursive(parents):
-        # type: (T.List[T.Type]) -> int
+    def _get_hash_recursive(parents: T.List[T.Type]) -> int:
         if outputs_1_t in parents: return 0
         newparents = parents + [outputs_1_t]
-        tmphash = (0x56da9f927edddf51+ values_vec_t._get_hash_recursive(newparents)+ values_vec_t._get_hash_recursive(newparents)) & 0xffffffffffffffff
+        tmphash = (0xa7f6beb7efb65a6f+ values_vec_t._get_hash_recursive(newparents)+ values_vec_t._get_hash_recursive(newparents)+ MatrixXd._get_hash_recursive(newparents)+ Matrix4d._get_hash_recursive(newparents)) & 0xffffffffffffffff
         tmphash = (((tmphash<<1)&0xffffffffffffffff)  + (tmphash>>63)) & 0xffffffffffffffff
         return tmphash
 
-    _packed_fingerprint = None  # type: T.Optional[bytes]
+    _packed_fingerprint: T.Optional[bytes] = None
 
     @staticmethod
-    def _get_packed_fingerprint():
-        # type: () -> bytes
+    def _get_packed_fingerprint() -> bytes:
         if outputs_1_t._packed_fingerprint is None:
             outputs_1_t._packed_fingerprint = struct.pack(">Q", outputs_1_t._get_hash_recursive([]))
         return outputs_1_t._packed_fingerprint
 
-    def deepcopy(self, **kwargs):
-        # type: (**T.Any) -> outputs_1_t
+    def deepcopy(self, **kwargs: T.Any) -> "outputs_1_t":
         """
         Deep copy of this LCM type
 

@@ -8,7 +8,7 @@
 
 #include <lcmtypes/sym/type_t.hpp>
 
-#include "../storage_ops.h"
+#include <sym/ops/storage_ops.h>
 
 // Forward declare class, without including header
 // We could include the class header here, but we forward declare to be consistent
@@ -29,7 +29,7 @@ struct StorageOps<Unit3<ScalarType>> {
   using Scalar = ScalarType;
 
   static constexpr int32_t StorageDim() {
-    return 4;
+    return 3;
   }
 
   static void ToStorage(const T& a, ScalarType* out);

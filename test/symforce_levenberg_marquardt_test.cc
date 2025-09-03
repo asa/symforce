@@ -5,7 +5,6 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <spdlog/spdlog.h>
 
 #include <symforce/opt/levenberg_marquardt_solver.h>
 
@@ -25,13 +24,15 @@ TEMPLATE_TEST_CASE("Converges for a linear problem in one iteration", "[levenber
   std::mt19937 gen(12345);
   const sym::MatrixX<Scalar> J_MN = sym::Random<Eigen::Matrix<Scalar, M, N>>(gen);
 
-  spdlog::debug("J_MN:\n{}", J_MN);
-  spdlog::debug("J_MN^T * J_MN:\n{}", (J_MN.transpose() * J_MN).eval());
+  INFO("J_MN:\n" << J_MN);
+  INFO("J_MN^T * J_MN: " << (J_MN.transpose() * J_MN).eval());
 
   constexpr const Scalar kEpsilon = 1e-10;
 
   sym::optimizer_params_t params{};
+  params.debug_stats = true;
   params.initial_lambda = 1.0;
+  params.lambda_update_type = sym::lambda_update_type_t::STATIC;
   params.lambda_up_factor = 3.0;
   params.lambda_down_factor = 1.0 / 3.0;
   params.lambda_lower_bound = 0.0;
@@ -44,7 +45,7 @@ TEMPLATE_TEST_CASE("Converges for a linear problem in one iteration", "[levenber
   using StateVector = Eigen::Matrix<Scalar, N, 1>;
 
   auto residual_func = [&](const sym::Values<Scalar>& values,
-                           sym::Linearization<Scalar>& linearization) {
+                           sym::SparseLinearization<Scalar>& linearization) {
     const auto state_vec = values.template At<StateVector>('v');
     linearization.residual = J_MN * state_vec;
     linearization.hessian_lower = (J_MN.transpose() * J_MN).sparseView();
@@ -54,32 +55,29 @@ TEMPLATE_TEST_CASE("Converges for a linear problem in one iteration", "[levenber
 
   sym::Values<Scalar> values_init{};
   values_init.Set('v', (StateVector::Ones() * 100).eval());
-  sym::index_t index = values_init.CreateIndex({'v'});
-  sym::Linearization<Scalar> linearization{};
+  sym::index_t index = values_init.CreateIndex(/* sort_by_offset */ false);
+  sym::SparseLinearization<Scalar> linearization{};
 
   residual_func(values_init, linearization);
   const sym::VectorX<Scalar> residual_init = linearization.residual;
   const Scalar error_init = 0.5 * residual_init.squaredNorm();
-  spdlog::debug("values_init: {}\n", values_init);
-  spdlog::debug("residual_init: {}\n", residual_init.transpose());
-  spdlog::debug("error_init: {}\n", error_init);
+  CAPTURE(values_init);
+  CAPTURE(residual_init.transpose());
+  CAPTURE(error_init);
 
   solver.SetIndex(index);
   solver.Reset(values_init);
 
-  // Collect debug stats so that we have the final residual
-  const bool debug_stats = true;
-
   // Do a single gauss-newton iteration
-  sym::OptimizationStats<Scalar> stats{};
-  solver.Iterate(residual_func, stats, debug_stats);
+  sym::OptimizationStats<typename sym::LevenbergMarquardtSolver<Scalar>::MatrixType> stats{};
+  solver.Iterate(residual_func, stats);
 
   const sym::VectorX<Scalar> residual_final =
       stats.iterations.back().residual.template cast<Scalar>();
   const Scalar error_final = 0.5 * residual_final.squaredNorm();
-  spdlog::debug("values_final: {}\n", solver.GetBestValues());
-  spdlog::debug("residual_final: {}\n", residual_final.transpose());
-  spdlog::debug("error_final: {}\n", error_final);
+  CAPTURE(solver.GetBestValues());
+  CAPTURE(residual_final.transpose());
+  CAPTURE(error_final);
 
   // Check initial error was high and final is zero
   CHECK(error_init > 10000.);

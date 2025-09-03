@@ -18,17 +18,18 @@ from .camera_cal import CameraCal
 
 class PolynomialCameraCal(CameraCal):
     """
-    Polynomial camera model in the style of OpenCV.
-    Distortion is a multiplicitive factor applied to the image plane coordinates in the camera
+    Polynomial camera model in the style of OpenCV
+
+    Distortion is a multiplicative factor applied to the image plane coordinates in the camera
     frame. Mapping between distorted image plane coordinates and image coordinates is done using
     a standard linear model.
 
     The distortion function is a 6th order even polynomial that is a function of the radius of the
-    image plane coordinates.
-    r = (p_img[0] ** 2 + p_img[1]**2) ** 0.5
-    distorted_weight = 1 + c0 * r^2 + c1 * r^4 + c2 * r^6
-    uv = p_img * distorted_weight
+    image plane coordinates::
 
+        r = (p_img[0] ** 2 + p_img[1] ** 2) ** 0.5
+        distorted_weight = 1 + c0 * r^2 + c1 * r^4 + c2 * r^6
+        uv = p_img * distorted_weight
     """
 
     NUM_DISTORTION_COEFFS = 3
@@ -39,7 +40,7 @@ class PolynomialCameraCal(CameraCal):
         focal_length: T.Sequence[T.Scalar],
         principal_point: T.Sequence[T.Scalar],
         distortion_coeffs: T.Sequence[T.Scalar] = (0.0, 0.0, 0.0),
-        critical_undistorted_radius: T.Scalar = None,
+        critical_undistorted_radius: T.Optional[T.Scalar] = None,
         max_fov: T.Scalar = DEFAULT_MAX_FOV,
     ) -> None:
         """
@@ -58,17 +59,14 @@ class PolynomialCameraCal(CameraCal):
 
         if critical_undistorted_radius is not None:
             self.critical_undistorted_radius = critical_undistorted_radius
+        elif any(
+            isinstance(c, sf.Expr) and not isinstance(c, sf.Number) for c in distortion_coeffs
+        ):
+            raise ValueError(
+                "critical_undistorted_radius must be provided if the distortion_coeffs are not all numerical"
+            )
         else:
-            if any(
-                isinstance(c, sf.Expr) and not isinstance(c, sf.Number) for c in distortion_coeffs
-            ):
-                raise ValueError(
-                    "critical_undistorted_radius must be provided if the distortion_coeffs are not all numerical"
-                )
-            else:
-                self.critical_undistorted_radius = self._compute_critical_undistorted_radius(
-                    max_fov
-                )
+            self.critical_undistorted_radius = self._compute_critical_undistorted_radius(max_fov)
 
     @classmethod
     def from_distortion_coeffs(
@@ -109,7 +107,7 @@ class PolynomialCameraCal(CameraCal):
         total = 1.0
         radius_term = 1.0
         for coef in self.distortion_coeffs.to_flat_list():
-            radius_term *= undistorted_radius ** 2
+            radius_term *= undistorted_radius**2
             total += radius_term * coef
         return total
 

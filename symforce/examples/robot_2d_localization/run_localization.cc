@@ -5,7 +5,7 @@
 #include <array>
 #include <iostream>
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 #include <spdlog/spdlog.h>
 
 #include <lcmtypes/sym/optimization_iteration_t.hpp>
@@ -50,7 +50,7 @@ void RunLocalization() {
 
   auto params = sym::DefaultOptimizerParams();
   params.verbose = true;
-  sym::Optimizer<double> optimizer(params, factors, sym::kDefaultEpsilon<double>);
+  sym::Optimizer<double> optimizer(params, factors);
 
   sym::Values<double> values;
   for (int i = 0; i < num_poses; ++i) {
@@ -85,6 +85,7 @@ void RunLocalization() {
   SYM_ASSERT(iteration_stats.size() == 9);
   SYM_ASSERT(6.39635 < first_iter.new_error && first_iter.new_error < 6.39637);
   SYM_ASSERT(best_iter.new_error < 0.00022003);
+  SYM_ASSERT(stats.status == sym::optimization_status_t::SUCCESS);
 
   const sym::Pose2d expected_p0({0.477063, 0.878869, -0.583038, -0.824491});
   const sym::Pose2d expected_p1({0.65425, 0.756279, 1.01671, -0.238356});

@@ -11,14 +11,14 @@ from .storage import Storage
 
 class Group(Storage):
     """
-    Interface for objects that implement the group concept. Because this
-    class is registered using ClassGroupOps (see bottom of this file), any
-    object that inherits from Group and that implements the functions defined
-    in this class can be used with the GroupOps concept.
+    Interface for objects that implement the group concept. Because this class is registered using
+    :class:`symforce.ops.impl.class_group_ops.ClassGroupOps` (see bottom of this file), any object
+    that inherits from ``Group`` and that implements the functions defined in this class can be used
+    with the GroupOps concept.
 
-    Because Group is a subclass of Storage, objects inheriting from Group
-    must also implement the functions defined in Storage (e.g. storage_dim,
-    to_storage, etc.), and can also be used with StorageOps.
+    Because ``Group`` is a subclass of :class:`.storage.Storage`, objects inheriting from ``Group``
+    must also implement the functions defined in ``Storage`` (e.g. storage_dim, to_storage, etc.),
+    and can also be used with StorageOps.
     """
 
     # Type that represents this or any subclasses
@@ -27,7 +27,7 @@ class Group(Storage):
     @classmethod
     def identity(cls: T.Type[GroupT]) -> GroupT:
         """
-        Identity element such that `compose(a, identity) = a`.
+        Identity element such that ``compose(a, identity) = a``.
         """
         raise NotImplementedError()
 
@@ -39,15 +39,16 @@ class Group(Storage):
 
     def inverse(self: GroupT) -> GroupT:
         """
-        Group inverse, such that `compose(a, inverse(a)) = identity`.
+        Group inverse, such that ``compose(a, inverse(a)) = identity``.
         """
         raise NotImplementedError()
 
     def between(self: GroupT, b: GroupT) -> GroupT:
         """
-        Returns the element that when composed with self produces b. For vector spaces it is `b - self`.
+        Returns the element that when composed with self produces b. For vector spaces it is
+        ``b - self``.
 
-        Implementation is simply `compose(inverse(self), b)`.
+        Implementation is simply ``compose(inverse(self), b)``.
         """
         return self.inverse().compose(b)
 

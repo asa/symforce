@@ -3,7 +3,10 @@
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
 
+import asyncio
+import dataclasses
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -21,7 +24,6 @@ from symforce import python_util
 from symforce.codegen import cam_package_codegen
 from symforce.codegen import codegen_util
 from symforce.codegen import geo_factors_codegen
-from symforce.codegen import geo_package_codegen
 from symforce.codegen import slam_factors_codegen
 from symforce.codegen import sym_util_package_codegen
 from symforce.codegen import template_util
@@ -29,7 +31,7 @@ from symforce.slam.imu_preintegration.generate import generate_manifold_imu_prei
 from symforce.test_util import TestCase
 from symforce.test_util import symengine_only
 
-SYMFORCE_DIR = path_util.symforce_data_root()
+SYMFORCE_DIR = path_util.symforce_data_root(__file__)
 TEST_DATA_DIR = (
     SYMFORCE_DIR / "test" / "symforce_function_codegen_test_data" / symforce.get_symbolic_api()
 )
@@ -66,11 +68,11 @@ class SymforceGenCodegenTest(TestCase):
         )
 
     def generate_tangent_d_storage_functions(self, output_dir: Path) -> None:
-        for cls in geo_package_codegen.DEFAULT_GEO_TYPES:
+        for cls in sf.GEO_TYPES:
             tangent_D_storage_codegen = codegen.Codegen.function(
                 func=ops.LieGroupOps.tangent_D_storage,
-                input_types=[cls],
                 config=codegen.CppConfig(),
+                input_types=[cls, sf.Scalar],
             )
             tangent_D_storage_codegen.generate_function(
                 output_dir=output_dir,
@@ -93,16 +95,16 @@ class SymforceGenCodegenTest(TestCase):
         cam_package_codegen.generate(config=config, output_dir=output_dir)
         template_util.render_template(
             template_dir=config.template_dir(),
-            template_path="setup.py.jinja",
-            output_path=output_dir / "setup.py",
+            template_path="pyproject.toml.jinja",
+            output_path=output_dir / "pyproject.toml",
             data=dict(
                 package_name="symforce-sym",
-                version=symforce.__version__,
                 description="generated numerical python package",
-                long_description="generated numerical python package",
             ),
-            config=config.render_template_config,
+            config=dataclasses.replace(config.render_template_config, autoformat=False),
         )
+
+        (output_dir / "sym" / "py.typed").touch()
 
         # Test against checked-in geo package (only on SymEngine)
         if symforce.get_symbolic_api() == "symengine":
@@ -110,7 +112,8 @@ class SymforceGenCodegenTest(TestCase):
                 actual_dir=output_dir / "sym", expected_dir=SYMFORCE_DIR / "gen" / "python" / "sym"
             )
             self.compare_or_update_file(
-                new_file=output_dir / "setup.py", path=SYMFORCE_DIR / "gen" / "python" / "setup.py"
+                new_file=output_dir / "pyproject.toml",
+                path=SYMFORCE_DIR / "gen" / "python" / "pyproject.toml",
             )
 
         # Compare against the checked-in tests
@@ -123,8 +126,17 @@ class SymforceGenCodegenTest(TestCase):
 
             # Run generated example / test from disk in a standalone process
             current_python = sys.executable
-            python_util.execute_subprocess(
-                [current_python, str(generated_code_file)], log_stdout=False
+
+            new_pythonpath = os.pathsep.join(
+                [str(output_dir)]
+                + ([os.environ["PYTHONPATH"]] if "PYTHONPATH" in os.environ else [])
+            )
+            asyncio.run(
+                python_util.execute_subprocess(
+                    [current_python, str(generated_code_file)],
+                    log_stdout=False,
+                    env=dict(os.environ, PYTHONPATH=new_pythonpath),
+                )
             )
 
         # Also hot load package directly in to this process

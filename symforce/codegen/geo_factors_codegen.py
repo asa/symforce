@@ -7,11 +7,12 @@ from pathlib import Path
 
 import symforce.symbolic as sf
 from symforce import ops
+from symforce import python_util
 from symforce import typing as T
 from symforce.codegen import Codegen
 from symforce.codegen import CppConfig
 
-TYPES = (sf.Rot2, sf.Rot3, sf.V3, sf.Pose2, sf.Pose3)
+TYPES = list(sf.GEO_TYPES) + list(sf.CAM_TYPES) + [sf.V3]
 
 
 def get_between_factor_docstring(between_argument_name: str) -> str:
@@ -29,9 +30,7 @@ def get_between_factor_docstring(between_argument_name: str) -> str:
         sqrt_info: Square root information matrix to whiten residual. This can be computed from
                    a covariance matrix as the cholesky decomposition of the inverse. In the case
                    of a diagonal it will contain 1/sigma values. Must match the tangent dim.
-    """.format(
-        a_T_b=between_argument_name
-    )
+    """.format(a_T_b=between_argument_name)
 
 
 def get_prior_docstring() -> str:
@@ -54,7 +53,7 @@ def get_prior_docstring() -> str:
 def between_factor(
     a: T.Element, b: T.Element, a_T_b: T.Element, sqrt_info: sf.Matrix, epsilon: sf.Scalar = 0
 ) -> sf.Matrix:
-    assert type(a) == type(b) == type(a_T_b)  # pylint: disable=unidiomatic-typecheck
+    assert type(a) is type(b) is type(a_T_b)
     assert sqrt_info.rows == sqrt_info.cols == ops.LieGroupOps.tangent_dim(a)
 
     # Compute error
@@ -71,7 +70,7 @@ def between_factor(
 def prior_factor(
     value: T.Element, prior: T.Element, sqrt_info: sf.Matrix, epsilon: sf.Scalar = 0
 ) -> sf.Matrix:
-    assert type(value) == type(prior)  # pylint: disable=unidiomatic-typecheck
+    assert type(value) is type(prior)
     assert sqrt_info.rows == sqrt_info.cols == ops.LieGroupOps.tangent_dim(value)
 
     # Compute error
@@ -89,14 +88,22 @@ def generate_between_factors(types: T.Sequence[T.Type], output_dir: T.Openable) 
     """
     for cls in types:
         tangent_dim = ops.LieGroupOps.tangent_dim(cls)
-        between_codegen = Codegen.function(
-            func=between_factor,
-            input_types=[cls, cls, cls, sf.M(tangent_dim, tangent_dim), sf.Symbol],
-            output_names=["res"],
-            config=CppConfig(),
-            docstring=get_between_factor_docstring("a_T_b"),
-        ).with_linearization(name=f"between_factor_{cls.__name__.lower()}", which_args=["a", "b"])
-        between_codegen.generate_function(output_dir, skip_directory_nesting=True)
+
+        try:
+            between_codegen = Codegen.function(
+                func=between_factor,
+                input_types=[cls, cls, cls, sf.M(tangent_dim, tangent_dim), sf.Symbol],
+                output_names=["res"],
+                config=CppConfig(),
+                docstring=get_between_factor_docstring("a_T_b"),
+            ).with_linearization(
+                name=f"between_factor_{python_util.camelcase_to_snakecase(cls.__name__)}",
+                which_args=["a", "b"],
+            )
+            between_codegen.generate_function(output_dir, skip_directory_nesting=True)
+        except NotImplementedError:
+            # Skip classes that don't implement standard group operations.
+            pass
 
         prior_codegen = Codegen.function(
             func=prior_factor,
@@ -104,7 +111,10 @@ def generate_between_factors(types: T.Sequence[T.Type], output_dir: T.Openable) 
             output_names=["res"],
             config=CppConfig(),
             docstring=get_prior_docstring(),
-        ).with_linearization(name=f"prior_factor_{cls.__name__.lower()}", which_args=["value"])
+        ).with_linearization(
+            name=f"prior_factor_{python_util.camelcase_to_snakecase(cls.__name__)}",
+            which_args=["value"],
+        )
         prior_codegen.generate_function(output_dir, skip_directory_nesting=True)
 
 

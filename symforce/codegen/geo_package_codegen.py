@@ -22,9 +22,7 @@ from symforce.codegen import lcm_types_codegen
 from symforce.codegen import template_util
 from symforce.codegen.ops_codegen_util import make_group_ops_funcs
 from symforce.codegen.ops_codegen_util import make_lie_group_ops_funcs
-
-# Default geo types to generate
-DEFAULT_GEO_TYPES = (sf.Rot2, sf.Pose2, sf.Rot3, sf.Pose3, sf.Unit3)
+from symforce.codegen.ops_codegen_util import make_manifold_ops_funcs
 
 
 def geo_class_common_data(cls: T.Type, config: CodegenConfig) -> T.Dict[str, T.Any]:
@@ -37,14 +35,25 @@ def geo_class_common_data(cls: T.Type, config: CodegenConfig) -> T.Dict[str, T.A
 
     data["specs"] = collections.defaultdict(list)
 
-    for func in make_group_ops_funcs(cls, config):
-        data["specs"]["GroupOps"].append(func)
+    # Group + Lie Group Functions
+    if cls in sf.GROUP_GEO_TYPES:
+        data["is_group"] = True
+        data["is_lie_group"] = True
+        for func in make_group_ops_funcs(cls, config):
+            data["specs"]["GroupOps"].append(func)
+        for func in make_lie_group_ops_funcs(cls, config):
+            data["specs"]["LieGroupOps"].append(func)
+    else:
+        data["is_group"] = False
+        data["is_lie_group"] = False
 
-    for func in make_lie_group_ops_funcs(cls, config):
+    # Manifold Functions
+    # Note(chet): Currently all geo types are valid manifolds.
+    data["is_manifold"] = True
+    for func in make_manifold_ops_funcs(cls, config):
         data["specs"]["LieGroupOps"].append(func)
 
     data["doc"] = textwrap.dedent(cls.__doc__).strip() if cls.__doc__ else ""
-    data["is_lie_group"] = hasattr(cls, "from_tangent")
 
     return data
 
@@ -73,10 +82,13 @@ def _custom_generated_methods(config: CodegenConfig) -> T.Dict[T.Type, T.List[Co
         config (CodegenConfig): Specifies the target language of the codegened functions.
     """
 
-    def pose2_inverse_compose(self: sf.Pose2, point: sf.Vector2) -> sf.Vector2:
-        return self.inverse() * point
+    def inverse_compose(self: T.Any, point: sf.Matrix) -> sf.Matrix:
+        """
+        Returns ``self.inverse() * point``
 
-    def pose3_inverse_compose(self: sf.Pose3, point: sf.Vector3) -> sf.Vector3:
+        This is more efficient than calling the generated inverse and compose methods separately, if
+        doing this for one point.
+        """
         return self.inverse() * point
 
     def codegen_mul(group: T.Type, multiplicand_type: T.Type) -> Codegen:
@@ -91,24 +103,41 @@ def _custom_generated_methods(config: CodegenConfig) -> T.Dict[T.Type, T.List[Co
             config=config,
         )
 
+    def to_yaw_pitch_roll(self: sf.Rot3) -> sf.V3:
+        return sf.V3(self.to_yaw_pitch_roll(epsilon=0))
+
+    to_yaw_pitch_roll.__doc__ = sf.Rot3.to_yaw_pitch_roll.__doc__
+
+    def from_yaw(yaw: T.Scalar) -> sf.Rot3:
+        """Construct from yaw angle in radians"""
+        return sf.Rot3.from_yaw_pitch_roll(yaw=yaw)
+
+    def from_pitch(pitch: T.Scalar) -> sf.Rot3:
+        """Construct from pitch angle in radians"""
+        return sf.Rot3.from_yaw_pitch_roll(pitch=pitch)
+
+    def from_roll(roll: T.Scalar) -> sf.Rot3:
+        """Construct from roll angle in radians"""
+        return sf.Rot3.from_yaw_pitch_roll(roll=roll)
+
     rot3_functions = (
         [
             codegen_mul(sf.Rot3, sf.Vector3),
+            Codegen.function(func=sf.Rot3.to_tangent_norm, config=config),
             Codegen.function(func=sf.Rot3.to_rotation_matrix, config=config),
             Codegen.function(
-                func=functools.partial(sf.Rot3.random_from_uniform_samples, pi=sf.pi),
-                name="random_from_uniform_samples",
-                config=config,
+                func=functools.partial(sf.Rot3.random_from_uniform_samples, pi=sf.pi), config=config
             ),
             Codegen.function(
                 # TODO(aaron): We currently can't generate custom methods with defaults - fix this, and
                 # pass epsilon as an argument with a default
-                func=lambda self: sf.V3(self.to_yaw_pitch_roll(epsilon=0)),
-                input_types=[sf.Rot3],
-                name="to_yaw_pitch_roll",
+                func=to_yaw_pitch_roll,
                 config=config,
             ),
             Codegen.function(func=sf.Rot3.from_yaw_pitch_roll, config=config),
+            Codegen.function(func=from_yaw, config=config),
+            Codegen.function(func=from_pitch, config=config),
+            Codegen.function(func=from_roll, config=config),
         ]
         + (
             # TODO(brad): We don't currently generate this in python because python (unlike C++)
@@ -138,11 +167,11 @@ def _custom_generated_methods(config: CodegenConfig) -> T.Dict[T.Type, T.List[Co
     )
 
     def pose_getter_methods(pose_type: T.Type) -> T.List[Codegen]:
-        def rotation(self: T.Any) -> T.Any:
+        def rotation_storage(self: T.Any) -> T.Any:
             """
             Returns the rotational component of this pose.
             """
-            return self.R
+            return sf.Matrix(self.R.to_storage())
 
         def position(self: T.Any) -> T.Any:
             """
@@ -151,8 +180,22 @@ def _custom_generated_methods(config: CodegenConfig) -> T.Dict[T.Type, T.List[Co
             return self.t
 
         return [
-            Codegen.function(func=rotation, input_types=[pose_type], config=config),
+            Codegen.function(func=rotation_storage, input_types=[pose_type], config=config),
             Codegen.function(func=position, input_types=[pose_type], config=config),
+        ]
+
+    unit3_functions = [
+        Codegen.function(func=sf.Unit3.basis, config=config),
+        Codegen.function(func=sf.Unit3.to_unit_vector, config=config),
+        Codegen.function(func=sf.Unit3.random_from_uniform_samples, config=config),
+    ]
+    # TODO(chet): because the generated C++ config has normalization default option for class
+    # initialization, these functions are custom written. For Python config, the normalization
+    # default does not exist and so generating these functions automatically is not-redundant.
+    if isinstance(config, PythonConfig):
+        unit3_functions += [
+            Codegen.function(func=sf.Unit3.from_vector, config=config),
+            Codegen.function(func=sf.Unit3.from_unit_vector, config=config),
         ]
 
     return {
@@ -160,33 +203,35 @@ def _custom_generated_methods(config: CodegenConfig) -> T.Dict[T.Type, T.List[Co
             codegen_mul(sf.Rot2, sf.Vector2),
             Codegen.function(func=sf.Rot2.from_angle, config=config),
             Codegen.function(func=sf.Rot2.to_rotation_matrix, config=config),
+            Codegen.function(func=sf.Rot2.from_rotation_matrix, config=config),
+            Codegen.function(
+                func=functools.partial(sf.Rot2.random_from_uniform_sample, pi=sf.pi), config=config
+            ),
         ],
         sf.Rot3: rot3_functions,
         sf.Pose2: pose_getter_methods(sf.Pose2)
         + [
             codegen_mul(sf.Pose2, sf.Vector2),
-            Codegen.function(func=pose2_inverse_compose, name="inverse_compose", config=config),
+            Codegen.function(
+                func=inverse_compose, config=config, input_types=[sf.Pose2, sf.Vector2]
+            ),
             Codegen.function(func=sf.Pose2.to_homogenous_matrix, config=config),
         ],
         sf.Pose3: pose_getter_methods(sf.Pose3)
         + [
             codegen_mul(sf.Pose3, sf.Vector3),
-            Codegen.function(func=pose3_inverse_compose, name="inverse_compose", config=config),
+            Codegen.function(
+                func=inverse_compose, config=config, input_types=[sf.Pose3, sf.Vector3]
+            ),
             Codegen.function(func=sf.Pose3.to_homogenous_matrix, config=config),
         ],
-        sf.Unit3: [
-            Codegen.function(func=sf.Unit3.from_vector, config=config),
-            Codegen.function(func=sf.Unit3.to_unit_vector, config=config),
-            Codegen.function(func=sf.Unit3.to_rotation, config=config),
-        ],
+        sf.Unit3: unit3_functions,
     }
 
 
-def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
+def generate(config: CodegenConfig, output_dir: T.Optional[Path] = None) -> Path:
     """
     Generate the geo package for the given language.
-
-    TODO(hayk): Take scalar_type list here.
     """
     # Create output directory if needed
     if output_dir is None:
@@ -207,13 +252,13 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
 
         # Build up templates for each type
 
-        for cls in DEFAULT_GEO_TYPES:
+        for cls in sf.GEO_TYPES:
             data = geo_class_common_data(cls, config)
             data["matrix_type_aliases"] = matrix_type_aliases.get(cls, {})
             data["custom_generated_methods"] = custom_generated_methods.get(cls, {})
             if cls == sf.Pose2:
                 data["imported_classes"] = [sf.Rot2]
-            elif cls in (sf.Pose3, sf.Unit3):
+            elif cls in {sf.Pose3}:
                 data["imported_classes"] = [sf.Rot3]
 
             for base_dir, relative_path in (
@@ -240,7 +285,7 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
             template_path=Path("geo_package", "__init__.py.jinja"),
             data=dict(
                 Codegen.common_data(),
-                all_types=DEFAULT_GEO_TYPES,
+                all_types=sf.GEO_TYPES,
                 numeric_epsilon=sf.numeric_epsilon,
             ),
             config=config.render_template_config,
@@ -251,7 +296,11 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
         for name in ("geo_package_python_test.py",):
             templates.add(
                 template_path=Path("tests", name + ".jinja"),
-                data=dict(Codegen.common_data(), all_types=DEFAULT_GEO_TYPES),
+                data=dict(
+                    Codegen.common_data(),
+                    all_types=sf.GEO_TYPES,
+                    group_geo_types=sf.GROUP_GEO_TYPES,
+                ),
                 config=config.render_template_config,
                 output_path=output_dir / "tests" / name,
             )
@@ -265,7 +314,7 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
         logger.debug(f'Creating C++ package at: "{package_dir}"')
 
         # Build up templates for each type
-        for cls in DEFAULT_GEO_TYPES:
+        for cls in sf.GEO_TYPES:
             data = geo_class_common_data(cls, config)
             data["matrix_type_aliases"] = matrix_type_aliases.get(cls, {})
             data["custom_generated_methods"] = custom_generated_methods.get(cls, {})
@@ -310,10 +359,15 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
                 output_path=output_dir / "tests" / name,
                 data=dict(
                     Codegen.common_data(),
-                    all_types=DEFAULT_GEO_TYPES,
+                    all_types=sf.GEO_TYPES,
                     cpp_geo_types=[
                         f"sym::{cls.__name__}<{scalar}>"
-                        for cls in DEFAULT_GEO_TYPES
+                        for cls in sf.GEO_TYPES
+                        for scalar in data["scalar_types"]
+                    ],
+                    cpp_group_geo_types=[
+                        f"sym::{cls.__name__}<{scalar}>"
+                        for cls in sf.GROUP_GEO_TYPES
                         for scalar in data["scalar_types"]
                     ],
                     cpp_matrix_types=[
@@ -325,6 +379,12 @@ def generate(config: CodegenConfig, output_dir: Path = None) -> Path:
                 config=config.render_template_config,
             )
 
+        templates.add(
+            template_path=Path("geo_package/all_geo_types.h.jinja"),
+            data=Codegen.common_data(),
+            config=config.render_template_config,
+            output_path=package_dir / "all_geo_types.h",
+        )
     else:
         raise NotImplementedError(f'Unknown config type: "{config}"')
 

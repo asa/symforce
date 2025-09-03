@@ -6,6 +6,7 @@
 import logging
 
 import numpy as np
+import numpy.typing as npt
 
 import symforce.symbolic as sf
 from symforce import logger
@@ -49,6 +50,19 @@ class GeoRot2Test(LieGroupOpsTestMixin, TestCase):
         rot2 = sf.Rot2.from_tangent([1.5])
         self.assertEqual(rot1, rot2)
 
+    def test_from_to_angle(self) -> None:
+        """
+        Tests:
+            Rot2.from_angle
+            Rot2.to_angle
+        """
+        for angle, angle_gt in zip(
+            [0.0, np.pi / 2, np.pi, 3 * np.pi / 2, 2 * np.pi],
+            [0.0, np.pi / 2, np.pi, -np.pi / 2, 0.0],
+        ):
+            rot = sf.Rot2.from_angle(angle).evalf()
+            self.assertLess(abs(angle_gt - rot.to_angle()), 1e-8)
+
     def test_lie_exponential(self) -> None:
         """
         Tests:
@@ -58,10 +72,10 @@ class GeoRot2Test(LieGroupOpsTestMixin, TestCase):
         """
         element = self.element()
         dim = LieGroupOps.tangent_dim(element)
-        pertubation = list(np.random.normal(scale=0.1, size=(dim,)))
+        perturbation = list(np.random.normal(scale=0.1, size=(dim,)))
 
         # Compute the hat matrix
-        hat = element.hat(pertubation)
+        hat = element.hat(perturbation)
 
         # Take the matrix exponential (only supported with sympy)
         import sympy
@@ -69,7 +83,7 @@ class GeoRot2Test(LieGroupOpsTestMixin, TestCase):
         hat_exp = sf.M(sympy.expand(sympy.exp(sympy.S(hat.mat))))
 
         # As a comparison, take the exponential map and convert to a matrix
-        expmap = sf.Rot2.from_tangent(pertubation, epsilon=self.EPSILON)
+        expmap = sf.Rot2.from_tangent(perturbation, epsilon=self.EPSILON)
         matrix_expected = expmap.to_rotation_matrix()
 
         # They should match!
@@ -101,7 +115,9 @@ class GeoRot2Test(LieGroupOpsTestMixin, TestCase):
             Ps_rotated = [e.evalf() * P for e in elements]
 
             # Compute angles and check basic stats
-            angles = np.array([sf.acos(P.dot(P_rot)) for P_rot in Ps_rotated], dtype=np.float64)
+            angles: npt.NDArray[np.float64] = np.array(
+                [sf.acos(P.dot(P_rot)) for P_rot in Ps_rotated], dtype=np.float64
+            )
 
             self.assertLess(np.min(angles), 0.3)
             self.assertGreater(np.max(angles), np.pi - 0.3)

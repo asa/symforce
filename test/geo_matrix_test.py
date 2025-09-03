@@ -36,25 +36,25 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
         # 2) Matrix(sf.sympy.Matrix([[1, 2], [3, 4]]))  # Matrix22 with [1, 2, 3, 4] data
         self.assertIsInstance(sf.M(sf.sympy.Matrix([[1, 2], [3, 4]])), sf.M22)
         self.assertEqual(sf.M(sf.sympy.Matrix([[1, 2], [3, 4]])), sf.M([[1, 2], [3, 4]]))
-        self.assertRaises(AssertionError, lambda: sf.V3(sf.V2()))
+        self.assertRaises(ValueError, lambda: sf.V3(sf.V2()))
 
         # 3A) Matrix([[1, 2], [3, 4]])  # Matrix22 with [1, 2, 3, 4] data
         self.assertIsInstance(sf.M([[1, 2], [3, 4]]), sf.M22)
         self.assertEqual(sf.M([[1, 2], [3, 4]]), sf.M22([1, 2, 3, 4]))
-        self.assertRaises(AssertionError, lambda: sf.M([[1, 2], [3, 4, 5]]))
-        self.assertRaises(AssertionError, lambda: sf.M([[sf.M22(), sf.M23()]]))
-        self.assertRaises(AssertionError, lambda: sf.M11([[1, 2]]))
+        self.assertRaises(ValueError, lambda: sf.M([[1, 2], [3, 4, 5]]))
+        self.assertRaises(TypeError, lambda: sf.M([[sf.M22(), sf.M23()]]))
+        self.assertRaises(ValueError, lambda: sf.M11([[1, 2]]))
 
         # 3B) Matrix22([1, 2, 3, 4])  # Matrix22 with [1, 2, 3, 4] data (must matched fixed shape)
         self.assertIsInstance(sf.M22([1, 2, 3, 4]), sf.M22)
         self.assertEqual(sf.M22([1, 2, 3, 4]).to_flat_list(), [1, 2, 3, 4])
-        self.assertRaises(AssertionError, lambda: sf.M22([1, 2, 3]))
-        self.assertRaises(AssertionError, lambda: sf.M22([1, 2, 3, 4, 5]))
+        self.assertRaises(ValueError, lambda: sf.M22([1, 2, 3]))
+        self.assertRaises(ValueError, lambda: sf.M22([1, 2, 3, 4, 5]))
 
         # 3C) Matrix([1, 2, 3, 4])  # Matrix41 with [1, 2, 3, 4] data - column vector assumed
         self.assertEqual(sf.M([1, 2, 3, 4]), sf.M([[1], [2], [3], [4]]))
         self.assertEqual(sf.M41([1, 2, 3, 4]), sf.M([[1], [2], [3], [4]]))
-        self.assertRaises(AssertionError, lambda: sf.M31([1, 2, 3, 4]))
+        self.assertRaises(ValueError, lambda: sf.M31([1, 2, 3, 4]))
 
         # 4) Matrix(4, 3)  # Zero constructed Matrix43
         self.assertEqual(sf.M(4, 3), sf.M43.zero())
@@ -73,8 +73,8 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
         self.assertEqual(sf.M21(4, 3), sf.M([[4], [3]]))
         self.assertEqual(sf.M12(4, 3), sf.M([[4, 3]]))
         self.assertEqual(sf.M(4, 3), sf.M.zeros(4, 3))
-        self.assertRaises(AssertionError, lambda: sf.M22(1, 2, 3))
-        self.assertRaises(AssertionError, lambda: sf.M22(1, 2, 3, 4, 5))
+        self.assertRaises(ValueError, lambda: sf.M22(1, 2, 3))
+        self.assertRaises(ValueError, lambda: sf.M22(1, 2, 3, 4, 5))
 
         # Test large size (not statically defined)
         self.assertEqual(type(sf.M(12, 4)).__name__, "Matrix12_4")
@@ -172,7 +172,7 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
         )
 
         x = sf.Symbol("x")
-        unsimple_matrix = sf.Matrix([x ** 2 - x, 0])
+        unsimple_matrix = sf.Matrix([x**2 - x, 0])
         simple_matrix = sf.Matrix([x * (x - 1), 0])
         self.assertEqual(unsimple_matrix.simplify(), simple_matrix)
 
@@ -190,8 +190,8 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
         self.assertStorageNear(numpy_mat, geo_mat.to_numpy())
 
         # Make sure we assert when calling a method that expects fixed size on sf.M
-        self.assertRaises(AssertionError, lambda: sf.M.symbolic("C"))
-        self.assertRaises(AssertionError, lambda: sf.M.from_storage([1, 2, 3]))
+        self.assertRaises(TypeError, lambda: sf.M.symbolic("C"))
+        self.assertRaises(TypeError, lambda: sf.M.from_storage([1, 2, 3]))
 
     def test_constructor_helpers(self) -> None:
         """
@@ -207,8 +207,8 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
             self.assertEqual(vec(*rand_vec), sf.Matrix(rand_vec))
 
             rand_vec_long = np.random.rand(i + 2)
-            self.assertRaises(AssertionError, vec, rand_vec_long)
-            self.assertRaises(AssertionError, vec, *rand_vec_long)
+            self.assertRaises(ValueError, vec, rand_vec_long)
+            self.assertRaises(ValueError, vec, *rand_vec_long)
 
         eye_matrix_constructors = [sf.I1, sf.I2, sf.I3, sf.I4, sf.I5, sf.I6]
         for i, mat in enumerate(eye_matrix_constructors):
@@ -248,7 +248,7 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
 
         mat = sf.M22.symbolic("a")
         vec = mat[:, 0]
-        self.assertRaises(AssertionError, lambda: mat.jacobian(vec))
+        self.assertEqual(sf.M42.eye(), mat.jacobian(vec))
 
     def test_block_matrix(self) -> None:
         """
@@ -268,8 +268,8 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
         self.assertEqual(
             sf.M.block_matrix([[M22, M21], [M13]]), sf.M([[1, 1, 5], [1, 1, 5], [6, 6, 6]])
         )
-        self.assertRaises(AssertionError, lambda: sf.M.block_matrix([[M22, M23], [M11, sf.M15()]]))
-        self.assertRaises(AssertionError, lambda: sf.M.block_matrix([[M22, sf.M33()], [M11, M14]]))
+        self.assertRaises(ValueError, lambda: sf.M.block_matrix([[M22, M23], [M11, sf.M15()]]))
+        self.assertRaises(ValueError, lambda: sf.M.block_matrix([[M22, sf.M33()], [M11, M14]]))
 
     def test_transpose(self) -> None:
         """
@@ -305,6 +305,23 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
         self.assertRaises(ValueError, lambda: sf.M45().lower_triangle())
         self.assertRaises(ValueError, lambda: sf.M54().lower_triangle())
 
+    def test_symmetric_copy(self) -> None:
+        """
+        Tests:
+            Matrix.symmetric_copy
+        """
+
+        m22 = sf.M22([[1, 2], [3, 4]])
+        self.assertEqual(m22.symmetric_copy(sf.Matrix.Triangle.LOWER), sf.M22([[1, 3], [3, 4]]))
+        self.assertEqual(m22.symmetric_copy(sf.Matrix.Triangle.UPPER), sf.M22([[1, 2], [2, 4]]))
+
+        with self.assertRaises(TypeError):
+            sf.M31().symmetric_copy(sf.Matrix.Triangle.LOWER)
+
+        m22_copy = m22.symmetric_copy(sf.Matrix.Triangle.LOWER)
+        m22_copy[0, 1] = 5
+        self.assertNotEqual(m22, m22_copy)
+
     def test_row_col(self) -> None:
         """
         Tests:
@@ -336,7 +353,7 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
                 def scalar_clamp_norm(x: sf.Scalar, epsilon: sf.Scalar) -> sf.Scalar:
                     return sf.V3(0, 0, x).clamp_norm(2, epsilon)[2, 0]
 
-                # TODO: Also test the derivative
+                # TODO(aaron): Also test the derivative
                 # SymPy is currently incapable of evaluating the derivative here
                 self.assertTrue(
                     epsilon_handling.is_value_with_epsilon_correct(
@@ -364,9 +381,9 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
 
         self.assertEqual(a.multiply_elementwise(b), expected_result)
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(TypeError):
             # This should fail mypy, since it's actually wrong
-            a.multiply_elementwise(sf.M43())  # type: ignore
+            a.multiply_elementwise(sf.M43())  # type: ignore[arg-type]
 
     def test_dot_product(self) -> None:
         """
@@ -452,13 +469,13 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
         self.assertEqual(sf.V2.unit_x().x, 1)
         self.assertEqual(sf.V2.unit_x().y, 0)
         with self.assertRaises(AttributeError):
-            _ = sf.V2.unit_x().z  # type: ignore[attr-defined]  # pylint: disable=no-member
+            _ = sf.V2.unit_x().z  # type: ignore[attr-defined]
 
         self.assertEqual(sf.V2.unit_y().x, 0)
         self.assertEqual(sf.V2.unit_y().y, 1)
 
         with self.assertRaises(AttributeError):
-            sf.V2.unit_z()  # type: ignore[attr-defined]  # pylint: disable=no-member
+            sf.V2.unit_z()  # type: ignore[attr-defined]
 
         self.assertEqual(sf.V3.unit_x().x, 1)
         self.assertEqual(sf.V3.unit_x().y, 0)
@@ -471,6 +488,39 @@ class GeoMatrixTest(LieGroupOpsTestMixin, TestCase):
         self.assertEqual(sf.V3.unit_z().x, 0)
         self.assertEqual(sf.V3.unit_z().y, 0)
         self.assertEqual(sf.V3.unit_z().z, 1)
+
+    def test_empty_matrix(self) -> None:
+        """
+        Tests some basic operations on empty matrices
+
+        TODO(aaron): Test more operations
+        """
+        element = sf.Matrix(0, 0)
+
+        dims = element.SHAPE
+        self.assertEqual(element.zero(), sf.Matrix.zeros(dims[0], dims[1]))
+        self.assertEqual(element.one(), sf.Matrix.ones(dims[0], dims[1]))
+
+        self.assertEqual(sf.Matrix(0, 1).shape, (0, 1))
+        self.assertEqual(sf.Matrix(1, 0).shape, (1, 0))
+        self.assertEqual(sf.Matrix(0, 0).shape, (0, 0))
+
+        self.assertEqual(sf.Matrix(0, 1).symbolic("x"), sf.Matrix(0, 1))
+        self.assertEqual(sf.Matrix(1, 0).symbolic("x"), sf.Matrix(1, 0))
+        self.assertEqual(sf.Matrix(0, 0).symbolic("x"), sf.Matrix(0, 0))
+
+        self.assertEqual(list(sf.Matrix(0, 1)), [])
+        self.assertEqual(list(sf.Matrix(1, 0)), [])
+        self.assertEqual(list(sf.Matrix(0, 0)), [])
+
+        if symforce.get_symbolic_api() == "sympy":
+            self.assertEqual(str(sf.Matrix(1, 0)), "Matrix(1, 0, [])")
+            self.assertEqual(str(sf.Matrix(0, 1)), "Matrix(0, 1, [])")
+            self.assertEqual(str(sf.Matrix(0, 0)), "Matrix(0, 0, [])")
+        else:
+            self.assertEqual(str(sf.Matrix(1, 0)), "[]\n")
+            self.assertEqual(str(sf.Matrix(0, 1)), "")
+            self.assertEqual(str(sf.Matrix(0, 0)), "")
 
 
 if __name__ == "__main__":

@@ -34,15 +34,20 @@ class Robot2DLocalizationTest(TestCase):
         optimizer = Optimizer(
             factors=factors,
             optimized_keys=optimized_keys,
-            debug_stats=True,  # Return problem stats for every iteration
-            params=Optimizer.Params(verbose=True),  # Customize optimizer behavior
+            params=Optimizer.Params(  # Customize optimizer behavior
+                # Print information about each iteration
+                verbose=True,
+                # Return problem stats for every iteration
+                debug_stats=True,
+            ),
         )
 
         # Solve and return the result
         result = optimizer.optimize(initial_values)
 
-        self.assertAlmostEqual(result.iterations[0].new_error, 6.396357536315918)
+        self.assertAlmostEqual(result.iterations[0].new_error, 6.396357319110695)
         self.assertLess(result.error(), 1e-3)
+        self.assertEqual(result.status, Optimizer.Status.SUCCESS)
 
 
 if __name__ == "__main__":

@@ -22,12 +22,12 @@ class Pose2_SE2(Pose2):
     """
     Group of two-dimensional rigid body transformations - SE(2).
 
-    There is no generated runtime analogue of this class in the `sym` package, which means you
+    There is no generated runtime analogue of this class in the :mod:`sym` package, which means you
     cannot use it as an input or output of generated functions or as a variable in an optimized
-    Values.  This is intentional - in general, you should use the Pose2 class instead of this one,
-    because the generated expressions will be significantly more efficient.  If you are sure that
-    you need the different behavior of this class, it's here for reference or for use in symbolic
-    expressions.
+    Values.  This is intentional - in general, you should use the
+    :class:`Pose2 <symforce.geo.pose2.Pose2>` class instead of this one, because the generated
+    expressions will be significantly more efficient.  If you are sure that you need the different
+    behavior of this class, it's here for reference or for use in symbolic expressions.
 
     The storage space is a complex (real, imag) for rotation followed by a position (x, y).
 
@@ -69,21 +69,21 @@ class Pose2_SE2(Pose2):
         t_tangent = V_inv * self.t
         return [theta, t_tangent[0], t_tangent[1]]
 
-    def storage_D_tangent(self) -> Matrix:
+    def storage_D_tangent(self, epsilon: sf.Scalar = sf.epsilon()) -> Matrix:
         """
-        Note: generated from symforce/notebooks/storage_D_tangent.ipynb
+        Note: generated from ``symforce/notebooks/storage_D_tangent.ipynb``
         """
-        storage_D_tangent_R = self.R.storage_D_tangent()
+        storage_D_tangent_R = self.R.storage_D_tangent(epsilon)
         storage_D_tangent_t = self.R.to_rotation_matrix()
         return Matrix.block_matrix(
             [[storage_D_tangent_R, Matrix.zeros(2, 2)], [Matrix.zeros(2, 1), storage_D_tangent_t]]
         )
 
-    def tangent_D_storage(self) -> Matrix:
+    def tangent_D_storage(self, epsilon: sf.Scalar = sf.epsilon()) -> Matrix:
         """
-        Note: generated from symforce/notebooks/tangent_D_storage.ipynb
+        Note: generated from ``symforce/notebooks/tangent_D_storage.ipynb``
         """
-        tangent_D_storage_R = self.R.tangent_D_storage()
+        tangent_D_storage_R = self.R.tangent_D_storage(epsilon)
         tangent_D_storage_t = self.R.to_rotation_matrix().T
         return Matrix.block_matrix(
             [[tangent_D_storage_R, Matrix.zeros(1, 2)], [Matrix.zeros(2, 2), tangent_D_storage_t]]
@@ -94,8 +94,8 @@ class Pose2_SE2(Pose2):
         Applies a tangent space perturbation vec to self. Often used in optimization
         to update nonlinear values from an update step in the tangent space.
 
-        Implementation is simply `compose(self, from_tangent(vec))`.
-        Conceptually represents "self + vec" if self is a vector.
+        Implementation is simply ``compose(self, from_tangent(vec))``.
+        Conceptually represents ``self + vec`` if self is a vector.
         """
         return LieGroup.retract(self, vec, epsilon)
 
@@ -104,8 +104,8 @@ class Pose2_SE2(Pose2):
         Computes a tangent space perturbation around self to produce b. Often used in optimization
         to minimize the distance between two group elements.
 
-        Implementation is simply `to_tangent(between(self, b))`.
-        Tangent space perturbation that conceptually represents "b - self" if self is a vector.
+        Implementation is simply ``to_tangent(between(self, b))``.
+        Tangent space perturbation that conceptually represents ``b - self`` if self is a vector.
         """
         return LieGroup.local_coordinates(self, b, epsilon)
 

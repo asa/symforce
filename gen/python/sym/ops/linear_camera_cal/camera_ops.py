@@ -4,17 +4,19 @@
 # Do NOT modify by hand.
 # -----------------------------------------------------------------------------
 
+# ruff: noqa: PLR0915, F401, PLW0211, PLR0914
+
 import math
 import typing as T
 
 import numpy
 
-import sym  # pylint: disable=unused-import
+import sym
 
 
 class CameraOps(object):
     """
-    Python CameraOps implementation for <class 'symforce.cam.linear_camera_cal.LinearCameraCal'>.
+    Python CameraOps implementation for :py:class:`symforce.cam.linear_camera_cal.LinearCameraCal`.
     """
 
     @staticmethod
@@ -63,7 +65,7 @@ class CameraOps(object):
         """
         Project a 3D point in the camera frame into 2D pixel coordinates.
 
-        Return:
+        Returns:
             pixel: (x, y) coordinate in pixels if valid
             is_valid: 1 if the operation is within bounds else 0
         """
@@ -97,7 +99,7 @@ class CameraOps(object):
         """
         Project a 3D point in the camera frame into 2D pixel coordinates.
 
-        Return:
+        Returns:
             pixel: (x, y) coordinate in pixels if valid
             is_valid: 1 if the operation is within bounds else 0
             pixel_D_cal: Derivative of pixel with respect to intrinsic calibration parameters
@@ -120,36 +122,36 @@ class CameraOps(object):
         # Intermediate terms (5)
         _tmp0 = max(epsilon, point[2, 0])
         _tmp1 = 1 / _tmp0
-        _tmp2 = _self[0] * _tmp1
-        _tmp3 = _self[1] * _tmp1
+        _tmp2 = _tmp1 * point[0, 0]
+        _tmp3 = _tmp1 * point[1, 0]
         _tmp4 = (
             (1.0 / 2.0)
             * (
                 (0.0 if -epsilon + point[2, 0] == 0 else math.copysign(1, -epsilon + point[2, 0]))
                 + 1
             )
-            / _tmp0 ** 2
+            / _tmp0**2
         )
 
         # Output terms
         _pixel = numpy.zeros(2)
-        _pixel[0] = _self[2] + _tmp2 * point[0, 0]
-        _pixel[1] = _self[3] + _tmp3 * point[1, 0]
+        _pixel[0] = _self[0] * _tmp2 + _self[2]
+        _pixel[1] = _self[1] * _tmp3 + _self[3]
         _is_valid = max(0, (0.0 if point[2, 0] == 0 else math.copysign(1, point[2, 0])))
         _pixel_D_cal = numpy.zeros((2, 4))
-        _pixel_D_cal[0, 0] = _tmp1 * point[0, 0]
+        _pixel_D_cal[0, 0] = _tmp2
         _pixel_D_cal[1, 0] = 0
         _pixel_D_cal[0, 1] = 0
-        _pixel_D_cal[1, 1] = _tmp1 * point[1, 0]
+        _pixel_D_cal[1, 1] = _tmp3
         _pixel_D_cal[0, 2] = 1
         _pixel_D_cal[1, 2] = 0
         _pixel_D_cal[0, 3] = 0
         _pixel_D_cal[1, 3] = 1
         _pixel_D_point = numpy.zeros((2, 3))
-        _pixel_D_point[0, 0] = _tmp2
+        _pixel_D_point[0, 0] = _self[0] * _tmp1
         _pixel_D_point[1, 0] = 0
         _pixel_D_point[0, 1] = 0
-        _pixel_D_point[1, 1] = _tmp3
+        _pixel_D_point[1, 1] = _self[1] * _tmp1
         _pixel_D_point[0, 2] = -_self[0] * _tmp4 * point[0, 0]
         _pixel_D_point[1, 2] = -_self[1] * _tmp4 * point[1, 0]
         return _pixel, _is_valid, _pixel_D_cal, _pixel_D_point
@@ -160,9 +162,7 @@ class CameraOps(object):
         """
         Backproject a 2D pixel coordinate into a 3D ray in the camera frame.
 
-        TODO(hayk): Add a normalize boolean argument? Like in `cam.Camera`
-
-        Return:
+        Returns:
             camera_ray: The ray in the camera frame (NOT normalized)
             is_valid: 1 if the operation is within bounds else 0
         """
@@ -196,7 +196,7 @@ class CameraOps(object):
         """
         Backproject a 2D pixel coordinate into a 3D ray in the camera frame.
 
-        Return:
+        Returns:
             camera_ray: The ray in the camera frame (NOT normalized)
             is_valid: 1 if the operation is within bounds else 0
             point_D_cal: Derivative of point with respect to intrinsic calibration parameters

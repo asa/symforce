@@ -25,8 +25,10 @@ class PyTorchConfig(CodegenConfig):
         use_eigen_types: Use eigen_lcm types for vectors instead of lists
         autoformat: Run a code formatter on the generated code
         custom_preamble: An optional string to be prepended on the front of the rendered template
-        cse_optimizations: Optimizations argument to pass to sf.cse
+        cse_optimizations: Optimizations argument to pass to :func:`sf.cse <symforce.symbolic.cse>`
         zero_epsilon_behavior: What should codegen do if a default epsilon is not set?
+        normalize_results: Should function outputs be explicitly projected onto the manifold before
+                           returning?
     """
 
     doc_comment_line_prefix: str = ""
@@ -41,16 +43,19 @@ class PyTorchConfig(CodegenConfig):
     def template_dir(cls) -> Path:
         return CURRENT_DIR / "templates"
 
-    def templates_to_render(self, generated_file_name: str) -> T.List[T.Tuple[str, str]]:
+    @staticmethod
+    def templates_to_render(generated_file_name: str) -> T.List[T.Tuple[str, str]]:
         return [
             ("function/FUNCTION.py.jinja", f"{generated_file_name}.py"),
             ("function/__init__.py.jinja", "__init__.py"),
         ]
 
-    def printer(self) -> CodePrinter:
+    @staticmethod
+    def printer() -> CodePrinter:
         return pytorch_code_printer.PyTorchCodePrinter()
 
-    def format_matrix_accessor(self, key: str, i: int, j: int, *, shape: T.Tuple[int, int]) -> str:
+    @staticmethod
+    def format_matrix_accessor(key: str, i: int, j: int, *, shape: T.Tuple[int, int]) -> str:
         PyTorchConfig._assert_indices_in_bounds(i, j, shape)
         if (shape[0] == 1) ^ (shape[1] == 1):
             return f"{key}[..., {max(i, j)}]"

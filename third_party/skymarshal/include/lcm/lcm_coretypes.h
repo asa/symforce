@@ -65,9 +65,10 @@ union double_uint64 {
 typedef struct ___lcm_hash_ptr __lcm_hash_ptr;
 struct ___lcm_hash_ptr {
     const __lcm_hash_ptr *parent;
-    int64_t (*v)(void);
+    uint64_t (*v)(void);
 };
 
+#ifndef __cplusplus
 /**
  * BOOLEAN
  */
@@ -78,6 +79,7 @@ struct ___lcm_hash_ptr {
 #define __boolean_decode_array __int8_t_decode_array
 #define __boolean_clone_array __int8_t_clone_array
 #define boolean_encoded_size int8_t_encoded_size
+#endif
 
 /**
  * BYTE

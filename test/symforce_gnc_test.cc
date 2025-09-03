@@ -4,29 +4,11 @@
  * ---------------------------------------------------------------------------- */
 
 #include <catch2/catch_test_macros.hpp>
-#include <spdlog/spdlog.h>
 
 #include <symforce/opt/gnc_optimizer.h>
+#include <symforce/opt/optimizer.h>
 
 #include "symforce_function_codegen_test_data/symengine/gnc_test_data/cpp/symforce/gnc_factors/barron_factor.h"
-
-sym::optimizer_params_t DefaultLmParams() {
-  sym::optimizer_params_t params{};
-  params.iterations = 50;
-  params.verbose = true;
-  params.initial_lambda = 1.0;
-  params.lambda_up_factor = 4.0;
-  params.lambda_down_factor = 1 / 4.0;
-  params.lambda_lower_bound = 0.0;
-  params.lambda_upper_bound = 1000000.0;
-  params.early_exit_min_reduction = 1e-6;
-  params.use_unit_damping = true;
-  params.use_diagonal_damping = false;
-  params.keep_max_diagonal_damping = false;
-  params.diagonal_damping_min = 1e-6;
-  params.enable_bold_updates = false;
-  return params;
-}
 
 sym::optimizer_gnc_params_t DefaultGncParams() {
   sym::optimizer_gnc_params_t params{};
@@ -45,7 +27,7 @@ TEST_CASE("Test GNC", "[gnc]") {
   // Create values
   sym::Valuesd initial_values;
   initial_values.Set<sym::Vector5d>('x', sym::Vector5d::Ones());
-  initial_values.Set('e', kEpsilon);
+  initial_values.Set('e', sym::kDefaultEpsilond);
 
   // Pick random normal samples, with some outliers
   std::mt19937 gen(42);
@@ -64,27 +46,31 @@ TEST_CASE("Test GNC", "[gnc]") {
         sym::Factord::Hessian(gnc_factors::BarronFactor<double>, {'x', {'y', i}, 'u', 'e'}, {'x'}));
   }
 
-  sym::GncOptimizer<sym::Optimizerd> gnc_optimizer(
-      DefaultLmParams(), DefaultGncParams(), 'u', factors, kEpsilon, "sym::Optimize",
-      /* keys */ std::vector<sym::Key>{}, /* debug_stats */ false,
-      /* check_derivatives */ true, /* include_jacobians */ true);
+  auto params = sym::DefaultOptimizerParams();
+  params.verbose = true;
+  params.check_derivatives = true;
+  params.include_jacobians = true;
 
-  spdlog::debug("Initial x: {}", initial_values.At<sym::Vector5d>('x').transpose());
+  sym::GncOptimizer<sym::Optimizerd> gnc_optimizer(params, DefaultGncParams(), 'u', factors,
+                                                   "sym::Optimize",
+                                                   /* keys */ std::vector<sym::Key>{}, kEpsilon);
+
+  INFO("Initial x: " << initial_values.At<sym::Vector5d>('x').transpose());
 
   sym::Valuesd gnc_optimized_values = initial_values;
   const auto gnc_stats = gnc_optimizer.Optimize(gnc_optimized_values);
-  spdlog::debug("Final x: {}", gnc_optimized_values.At<sym::Vector5d>('x').transpose());
+  INFO("Final x: " << gnc_optimized_values.At<sym::Vector5d>('x').transpose());
 
   sym::Valuesd regular_optimized_values = initial_values;
   regular_optimized_values.Set('u', 0.0);
-  sym::Optimize(DefaultLmParams(), factors, regular_optimized_values, kEpsilon);
+  sym::Optimize(params, factors, regular_optimized_values);
 
-  spdlog::debug("Final x without GNC: {}",
-                regular_optimized_values.At<sym::Vector5d>('x').transpose());
+  INFO("Final x without GNC:" << regular_optimized_values.At<sym::Vector5d>('x').transpose());
 
   CHECK(gnc_stats.iterations.size() == 9);
   const sym::Vector5d gnc_optimized_x = gnc_optimized_values.At<sym::Vector5d>('x');
   const sym::Vector5d regular_optimized_x = regular_optimized_values.At<sym::Vector5d>('x');
   CHECK(gnc_optimized_x.norm() < 0.1);
   CHECK(gnc_optimized_x.norm() * 5 < regular_optimized_x.norm());
+  CHECK(gnc_stats.status == sym::optimization_status_t::SUCCESS);
 }

@@ -5,13 +5,11 @@
 
 #include "./cc_values.h"
 
-#include <algorithm>
-#include <array>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <pybind11/eigen.h>
@@ -23,18 +21,8 @@
 #include <lcmtypes/sym/type_t.hpp>
 #include <lcmtypes/sym/values_t.hpp>
 
-#include <sym/atan_camera_cal.h>
-#include <sym/double_sphere_camera_cal.h>
-#include <sym/equirectangular_camera_cal.h>
-#include <sym/linear_camera_cal.h>
-#include <sym/ops/storage_ops.h>
-#include <sym/polynomial_camera_cal.h>
-#include <sym/pose2.h>
-#include <sym/pose3.h>
-#include <sym/rot2.h>
-#include <sym/rot3.h>
-#include <sym/spherical_camera_cal.h>
-#include <sym/unit3.h>
+#include <sym/all_cam_types.h>
+#include <sym/all_geo_types.h>
 #include <sym/util/type_ops.h>
 #include <symforce/opt/key.h>
 #include <symforce/opt/values.h>
@@ -61,6 +49,20 @@ py::object PyAt(const sym::Valuesd& v, const sym::index_entry_t& index_entry) {
   return py::cast(v.At<T>(index_entry));
 }
 
+template <typename Scalar>
+py::object PyAtMatrix(const sym::Valuesd& v, const sym::index_entry_t& index_entry) {
+  const auto [rows, cols] = EigenTypeShape(index_entry.type);
+  if (rows == 1 || cols == 1) {
+    return py::cast(
+        Eigen::Map<const Eigen::VectorXd>(v.Data().data() + index_entry.offset, rows * cols),
+        py::return_value_policy::copy);
+  } else {
+    return py::cast(
+        Eigen::Map<const Eigen::MatrixXd>(v.Data().data() + index_entry.offset, rows, cols),
+        py::return_value_policy::copy);
+  }
+}
+
 /**
  * Has signature
  * template <typename Scalar>
@@ -71,7 +73,7 @@ py::object PyAt(const sym::Valuesd& v, const sym::index_entry_t& index_entry) {
  *
  * Precondition: type is a supported type_t
  */
-BY_TYPE_HELPER(DynamicPyAt, PyAt)
+BY_TYPE_HELPER(DynamicPyAt, PyAt, PyAtMatrix)
 
 /**
  * Dynamically identifies the type T stored in v at index_entry, then returns
@@ -110,6 +112,26 @@ void RegisterTypeWithValues(py::class_<sym::Valuesd> cls) {
           py::arg("key"), py::arg("value"),
           "Update a value by index entry with no map lookup (compared to Set(key)). This does NOT "
           "add new values and assumes the key exists already.");
+}
+
+template <typename Tuple>
+void RegisterTupleTypesWithValuesHelperImpl(py::class_<sym::Valuesd> /* cls */) {}
+
+template <typename Tuple, std::size_t First, std::size_t... Rest>
+void RegisterTupleTypesWithValuesHelperImpl(py::class_<sym::Valuesd> cls) {
+  RegisterTypeWithValues<typename std::tuple_element<First, Tuple>::type>(cls);
+  RegisterTupleTypesWithValuesHelperImpl<Tuple, Rest...>(cls);
+}
+
+template <typename Tuple, std::size_t... Is>
+void RegisterTupleTypesWithValuesHelper(py::class_<sym::Valuesd> cls, std::index_sequence<Is...>) {
+  RegisterTupleTypesWithValuesHelperImpl<Tuple, Is...>(cls);
+}
+
+template <typename Tuple>
+void RegisterTupleTypesWithValues(py::class_<sym::Valuesd> cls) {
+  RegisterTupleTypesWithValuesHelper<Tuple>(
+      cls, std::make_index_sequence<std::tuple_size<Tuple>::value>{});
 }
 
 /**
@@ -165,45 +187,59 @@ void AddValuesWrapper(pybind11::module_ module) {
       .def("has", &sym::Valuesd::Has, py::arg("key"), "Return whether the key exists.")
       .def("at", &ValuesAt, py::arg("key"), "Retrieve a value by key.")
       .def("update_or_set", &sym::Valuesd::UpdateOrSet, py::arg("index"), py::arg("other"), R"(
-        Update or add keys to this Values base on other Values of different structure.
-        index MUST be valid for other.
+          Update or add keys to this Values base on other Values of different structure.
+          index MUST be valid for other.
 
-        NOTE(alvin): it is less efficient than the Update methods below if index objects are created and cached. This method performs map lookup for each key of the index
+          NOTE(alvin): it is less efficient than the Update methods below if index objects are created and cached. This method performs map lookup for each key of the index
       )")
       .def("num_entries", &sym::Valuesd::NumEntries, "Number of keys.")
       .def("empty", &sym::Valuesd::Empty, "Has zero keys.")
       .def("keys", &sym::Valuesd::Keys, py::arg("sort_by_offset") = true, R"(
-        Get all keys.
+          Get all keys.
 
-        Args:
-          sort_by_offset: Sorts by storage order to make iteration safer and more memory efficient
+          Args:
+              sort_by_offset: Sorts by storage order to make iteration safer and more memory efficient
       )")
       .def("items", &sym::Valuesd::Items, "Expose map type to allow iteration.")
       .def("data", py::overload_cast<>(&sym::Valuesd::Data, py::const_), "Raw data buffer.")
       .def("remove", &sym::Valuesd::Remove, py::arg("key"), R"(
-        Remove the given key. Only removes the index entry, does not change the data array.
-        Returns true if removed, false if already not present.
+          Remove the given key. Only removes the index entry, does not change the data array.
+          Returns true if removed, false if already not present.
 
-        Call cleanup() to re-pack the data array.
+          Call cleanup() to re-pack the data array.
       )")
       .def("remove_all", &sym::Valuesd::RemoveAll, "Remove all keys and empty out the storage.")
       .def("cleanup", &sym::Valuesd::Cleanup, R"(
-        Repack the data array to get rid of empty space from removed keys. If regularly removing
-        keys, it's up to the user to call this appropriately to avoid storage growth. Returns the
-        number of Scalar elements cleaned up from the data array.
+          Repack the data array to get rid of empty space from removed keys. If regularly removing
+          keys, it's up to the user to call this appropriately to avoid storage growth. Returns the
+          number of Scalar elements cleaned up from the data array.
 
-        It will INVALIDATE all indices, offset increments, and pointers.
-        Re-create an index with create_index().
+          It will INVALIDATE all indices, offset increments, and pointers.
+          Re-create an index with create_index().
       )")
-      .def("create_index", &sym::Valuesd::CreateIndex, py::arg("keys"), R"(
-        Create an index from the given ordered subset of keys. This object can then be used
-        for repeated efficient operations on that subset of keys.
+      .def("create_index", py::overload_cast<bool>(&sym::Valuesd::CreateIndex, py::const_),
+           py::arg("sort_by_offset"), R"(
+          Create an index for all keys in this Values. This object can then be used
+          for repeated efficient operations.
 
-        If you want an index of all the keys, call `values.create_index(values.keys())`.
+          If sort_by_offset is true, the index will be sorted by offset.  Otherwise, the ordering is
+          not specified.
 
-        An index will be INVALIDATED if the following happens:
-          1) remove() is called with a contained key, or remove_all() is called
-          2) cleanup() is called to re-pack the data array
+          An index will be INVALIDATED if the following happens:
+            1) Remove() is called with a contained key, or RemoveAll() is called
+            2) Cleanup() is called to re-pack the data array
+      )")
+      .def("create_index",
+           py::overload_cast<const std::vector<Key>&>(&sym::Valuesd::CreateIndex, py::const_),
+           py::arg("keys"), R"(
+          Create an index from the given ordered subset of keys. This object can then be used
+          for repeated efficient operations on that subset of keys.
+
+          If you want an index of all the keys, call `values.create_index(values.keys())`.
+
+          An index will be INVALIDATED if the following happens:
+            1) remove() is called with a contained key, or remove_all() is called
+            2) cleanup() is called to re-pack the data array
       )")
       .def("at", &ValuesAtIndexEntry, py::arg("entry"),
            "Retrieve a value by index entry. This avoids a map lookup compared to at(key).")
@@ -231,18 +267,18 @@ void AddValuesWrapper(pybind11::module_ module) {
             v.Retract(index, delta.data(), epsilon);
           },
           py::arg("index"), py::arg("delta"), py::arg("epsilon"), R"(
-            Perform a retraction from an update vector.
+              Perform a retraction from an update vector.
 
-            Args:
-              index: Ordered list of keys in the delta vector
-              delta: Update vector - MUST be the size of index.tangent_dim!
-              epsilon: Small constant to avoid singularities (do not use zero)
+              Args:
+                  index: Ordered list of keys in the delta vector
+                  delta: Update vector - MUST be the size of index.tangent_dim!
+                  epsilon: Small constant to avoid singularities (do not use zero)
           )")
       .def("local_coordinates", &sym::Valuesd::LocalCoordinates, py::arg("others"),
            py::arg("index"), py::arg("epsilon"), R"(
-            Express this Values in the local coordinate of others Values, i.e., this \ominus others
+          Express this Values in the local coordinate of others Values, i.e., this \ominus others
 
-            Args:
+          Args:
               others: The other Values that the local coordinate is relative to
               index: Ordered list of keys to include (MUST be valid for both this and others Values)
               epsilon: Small constant to avoid singularities (do not use zero)
@@ -271,17 +307,8 @@ void AddValuesWrapper(pybind11::module_ module) {
             return sym::Valuesd(lcm_values);
           }));
   RegisterTypeWithValues<double>(values_class);
-  RegisterTypeWithValues<sym::Rot2d>(values_class);
-  RegisterTypeWithValues<sym::Rot3d>(values_class);
-  RegisterTypeWithValues<sym::Pose2d>(values_class);
-  RegisterTypeWithValues<sym::Pose3d>(values_class);
-  RegisterTypeWithValues<sym::Unit3d>(values_class);
-  RegisterTypeWithValues<sym::ATANCameraCald>(values_class);
-  RegisterTypeWithValues<sym::DoubleSphereCameraCald>(values_class);
-  RegisterTypeWithValues<sym::EquirectangularCameraCald>(values_class);
-  RegisterTypeWithValues<sym::LinearCameraCald>(values_class);
-  RegisterTypeWithValues<sym::PolynomialCameraCald>(values_class);
-  RegisterTypeWithValues<sym::SphericalCameraCald>(values_class);
+  RegisterTupleTypesWithValues<AllGeoTypes<double>>(values_class);
+  RegisterTupleTypesWithValues<AllCamTypes<double>>(values_class);
   // The template paramater below is 9 because all (and only) matrices up to size 9x9 are supported
   // by sym::Values.
   RegisterMatrices<9>(values_class);

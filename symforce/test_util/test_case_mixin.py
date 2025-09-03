@@ -92,9 +92,9 @@ class SymforceTestCaseMixin(unittest.TestCase):
         Check that two LieGroup elements are close.
         """
         epsilon = 10 ** (-max(9, places + 1))
-        # Compute the tangent space pertubation around `actual` that produces `desired`
+        # Compute the tangent space perturbation around `actual` that produces `desired`
         local_coordinates = LieGroupOps.local_coordinates(actual, desired, epsilon=epsilon)
-        # Compute the identity tangent space pertubation to compare against
+        # Compute the identity tangent space perturbation to compare against
         identity = sf.Matrix.zeros(LieGroupOps.tangent_dim(actual), 1)
         return np.testing.assert_almost_equal(
             actual=StorageOps.evalf(local_coordinates),
@@ -112,7 +112,7 @@ class SymforceTestCaseMixin(unittest.TestCase):
         """
         return np.testing.assert_array_equal(actual, desired, err_msg=msg)
 
-    def assertNotEqual(self, first: T.Any, second: T.Any, msg: str = "") -> None:
+    def assertNotEqual(self, first: T.Any, second: T.Any, msg: T.Optional[str] = "") -> None:
         """
         Overrides unittest.assertNotEqual to handle ndarrays separately. "assertNotEqual"
         uses the "!=" operator, but this is not implemented for ndarrays. Instead, we check that
@@ -120,28 +120,34 @@ class SymforceTestCaseMixin(unittest.TestCase):
         a assert_array_not_equal function.
 
         Note that assertNotEqual does not work like assertEqual in unittest. Rather than
-        allowing you to register a custom equality evaluator (e.g. with `addTypeEqualityFunc()`),
+        allowing you to register a custom equality evaluator (e.g. with ``addTypeEqualityFunc()``),
         assertNotEqual assumes the "!=" can be used with the arguments regardless of type.
         """
         if isinstance(first, np.ndarray):
             return np.testing.assert_raises(
-                AssertionError, np.testing.assert_array_equal, first, second, msg
+                AssertionError, np.testing.assert_array_equal, first, second, err_msg=msg or ""
             )
         else:
             return super().assertNotEqual(first, second, msg)
 
-    def make_output_dir(self, prefix: str, directory: Path = Path("/tmp")) -> Path:
+    def make_output_dir(
+        self, prefix: T.Optional[str] = None, directory: Path = Path("/tmp")
+    ) -> Path:
         """
         Create a temporary output directory, which will be automatically removed (regardless of
         exceptions) on shutdown, unless logger.level is DEBUG
 
         Args:
-            prefix: The prefix for the directory name - a random unique identifier is added to this
+            prefix: The prefix for the directory name - a random unique identifier is added to this.
+                Defaults to the name of the test, in snake_case
             dir: Location of the output directory. Defaults to "/tmp".
 
         Returns:
             str: The absolute path to the created output directory
         """
+        if prefix is None:
+            prefix = python_util.camelcase_to_snakecase(self.__class__.__name__)
+
         output_dir = Path(tempfile.mkdtemp(prefix=prefix, dir=directory))
         logger.debug(f"Creating temp directory: {output_dir}")
         self.output_dirs.append(output_dir)
@@ -172,7 +178,7 @@ class SymforceTestCaseMixin(unittest.TestCase):
     def compare_or_update(self, path: T.Openable, data: str) -> None:
         """
         Compare the given data to what is saved in path, OR update the saved data if
-        the --update flag was passed to the test.
+        the ``--update`` flag was passed to the test.
         """
         path = Path(path)
 
@@ -190,12 +196,15 @@ class SymforceTestCaseMixin(unittest.TestCase):
 
             if data != expected_data:
                 diff = difflib.unified_diff(
-                    expected_data.splitlines(), data.splitlines(), "expected", "got", lineterm=""
+                    expected_data.splitlines(keepends=True),
+                    data.splitlines(keepends=True),
+                    "expected",
+                    "got",
                 )
                 self.fail(
                     "\n"
-                    + "\n".join(diff)
-                    + f"\n\n{80*'='}\nData did not match for file {path}, see diff above.  Use "
+                    + "".join(diff)
+                    + f"\n\n{80 * '='}\nData did not match for file {path}, see diff above.  Use "
                     "`--update` to write the changes to the working directory and commit if desired"
                 )
 
@@ -215,7 +224,7 @@ class SymforceTestCaseMixin(unittest.TestCase):
     def compare_or_update_directory(self, actual_dir: T.Openable, expected_dir: T.Openable) -> None:
         """
         Check the contents of actual_dir match expected_dir, OR update the expected directory
-        if the --update flag was passed to the test.
+        if the ``--update`` flag was passed to the test.
         """
         actual_dir = Path(actual_dir)
         expected_dir = Path(expected_dir)

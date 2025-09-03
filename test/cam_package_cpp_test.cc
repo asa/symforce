@@ -16,13 +16,11 @@
 
 #include <random>
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <catch2/generators/catch_generators_range.hpp>
-#include <fmt/ostream.h>
-#include <spdlog/spdlog.h>
 
 #include <sym/atan_camera_cal.h>
 #include <sym/camera.h>
@@ -31,6 +29,7 @@
 #include <sym/linear_camera_cal.h>
 #include <sym/ops/group_ops.h>
 #include <sym/ops/lie_group_ops.h>
+#include <sym/orthographic_camera_cal.h>
 #include <sym/polynomial_camera_cal.h>
 #include <sym/pose3.h>
 #include <sym/posed_camera.h>
@@ -84,8 +83,10 @@ struct CamCals<sym::SphericalCameraCal<Scalar>> {
   static std::vector<T> Get() {
     return {
         CalFromData<T>({234, 234, 388, 391, M_PI, 0, 0, 0, 0}),
-        CalFromData<T>({234, 234, 388, 391, M_PI, 0.035, -0.025, 0.0070, -0.0015}),
-        CalFromData<T>({250, 250, 700, 500, M_PI, -0.01, -0.016, 0.0020, 0.0030}),
+        CalFromData<T>(
+            {234, 234, 388, 391, M_PI, 0.035, -0.025, 0.0070, -0.0015, 0.00023, -0.00027}),
+        CalFromData<T>(
+            {250, 250, 700, 500, M_PI, -0.01, -0.016, 0.0020, 0.0030, 0.00023, -0.00027}),
     };
   }
 };
@@ -126,19 +127,32 @@ struct CamCals<sym::ATANCameraCal<Scalar>> {
   }
 };
 
-TEMPLATE_TEST_CASE("Test storage ops", "[cam_package]", sym::LinearCameraCal<double>,
-                   sym::LinearCameraCal<float>, sym::ATANCameraCal<double>,
+template <typename Scalar>
+struct CamCals<sym::OrthographicCameraCal<Scalar>> {
+  using T = sym::OrthographicCameraCal<Scalar>;
+  static std::vector<T> Get() {
+    return {
+        CalFromData<T>({90, 90, 60, 80}),
+        CalFromData<T>({380, 380, 320, 240}),
+        CalFromData<T>({500, 500, 1000, 800}),
+    };
+  }
+};
+
+TEMPLATE_TEST_CASE("Test storage ops", "[cam_package]", sym::ATANCameraCal<double>,
                    sym::ATANCameraCal<float>, sym::DoubleSphereCameraCal<double>,
                    sym::DoubleSphereCameraCal<float>, sym::EquirectangularCameraCal<double>,
-                   sym::EquirectangularCameraCal<float>, sym::PolynomialCameraCal<double>,
+                   sym::EquirectangularCameraCal<float>, sym::LinearCameraCal<double>,
+                   sym::LinearCameraCal<float>, sym::PolynomialCameraCal<double>,
                    sym::PolynomialCameraCal<float>, sym::SphericalCameraCal<double>,
-                   sym::SphericalCameraCal<float>) {
+                   sym::SphericalCameraCal<float>, sym::OrthographicCameraCal<double>,
+                   sym::OrthographicCameraCal<float>) {
   using T = TestType;
   const T& cam_cal = GENERATE(from_range(CamCals<T>::Get()));
 
   using Scalar = typename T::Scalar;
 
-  spdlog::debug("*** Testing StorageOps: {} ***", cam_cal);
+  INFO("Testing StorageOps: " << cam_cal);
 
   constexpr int32_t storage_dim = sym::StorageOps<T>::StorageDim();
   CHECK(cam_cal.Data().rows() == storage_dim);
@@ -157,17 +171,18 @@ TEMPLATE_TEST_CASE("Test storage ops", "[cam_package]", sym::LinearCameraCal<dou
   CHECK(cam_cal.Data() != cam_cal3.Data());
 }
 
-TEMPLATE_TEST_CASE("Test group ops", "[cam_package]", sym::LinearCameraCal<double>,
-                   sym::LinearCameraCal<float>, sym::ATANCameraCal<double>,
+TEMPLATE_TEST_CASE("Test group ops", "[cam_package]", sym::ATANCameraCal<double>,
                    sym::ATANCameraCal<float>, sym::DoubleSphereCameraCal<double>,
                    sym::DoubleSphereCameraCal<float>, sym::EquirectangularCameraCal<double>,
-                   sym::EquirectangularCameraCal<float>, sym::PolynomialCameraCal<double>,
+                   sym::EquirectangularCameraCal<float>, sym::LinearCameraCal<double>,
+                   sym::LinearCameraCal<float>, sym::PolynomialCameraCal<double>,
                    sym::PolynomialCameraCal<float>, sym::SphericalCameraCal<double>,
-                   sym::SphericalCameraCal<float>) {
+                   sym::SphericalCameraCal<float>, sym::OrthographicCameraCal<double>,
+                   sym::OrthographicCameraCal<float>) {
   using T = TestType;
 
   const T identity = sym::GroupOps<T>::Identity();
-  spdlog::debug("*** Testing GroupOps: {} ***", identity);
+  INFO("Testing GroupOps: " << identity);
 
   using SelfJacobian = typename sym::GroupOps<T>::SelfJacobian;
 
@@ -188,17 +203,18 @@ TEMPLATE_TEST_CASE("Test group ops", "[cam_package]", sym::LinearCameraCal<doubl
       sym::GroupOps<T>::BetweenWithJacobians(identity, identity, &jacobian1, &jacobian2), 1e-9));
 }
 
-TEMPLATE_TEST_CASE("Test Lie group ops", "[cam_package]", sym::LinearCameraCal<double>,
-                   sym::LinearCameraCal<float>, sym::ATANCameraCal<double>,
+TEMPLATE_TEST_CASE("Test Lie group ops", "[cam_package]", sym::ATANCameraCal<double>,
                    sym::ATANCameraCal<float>, sym::DoubleSphereCameraCal<double>,
                    sym::DoubleSphereCameraCal<float>, sym::EquirectangularCameraCal<double>,
-                   sym::EquirectangularCameraCal<float>, sym::PolynomialCameraCal<double>,
+                   sym::EquirectangularCameraCal<float>, sym::LinearCameraCal<double>,
+                   sym::LinearCameraCal<float>, sym::PolynomialCameraCal<double>,
                    sym::PolynomialCameraCal<float>, sym::SphericalCameraCal<double>,
-                   sym::SphericalCameraCal<float>) {
+                   sym::SphericalCameraCal<float>, sym::OrthographicCameraCal<double>,
+                   sym::OrthographicCameraCal<float>) {
   using T = TestType;
 
   const T identity = sym::GroupOps<T>::Identity();
-  spdlog::debug("*** Testing LieGroupOps: {} ***", identity);
+  INFO("Testing LieGroupOps: " << identity);
 
   CHECK(sym::LieGroupOps<T>::TangentDim() == sym::LieGroupOps<T>::TangentVec::RowsAtCompileTime);
 
@@ -216,11 +232,11 @@ TEMPLATE_TEST_CASE("Test Lie group ops", "[cam_package]", sym::LinearCameraCal<d
         sym::kDefaultEpsilond);
 }
 
-TEMPLATE_TEST_CASE("Test project and deproject", "[cam_package]", sym::LinearCameraCal<double>,
-                   sym::LinearCameraCal<float>, sym::ATANCameraCal<double>,
+TEMPLATE_TEST_CASE("Test project and deproject", "[cam_package]", sym::ATANCameraCal<double>,
                    sym::ATANCameraCal<float>, sym::DoubleSphereCameraCal<double>,
                    sym::DoubleSphereCameraCal<float>, sym::EquirectangularCameraCal<double>,
-                   sym::EquirectangularCameraCal<float>) {
+                   sym::EquirectangularCameraCal<float>, sym::LinearCameraCal<double>,
+                   sym::LinearCameraCal<float>) {
   using T = TestType;
   const T& cam_cal = GENERATE(from_range(CamCals<T>::Get()));
 
@@ -228,7 +244,7 @@ TEMPLATE_TEST_CASE("Test project and deproject", "[cam_package]", sym::LinearCam
   const Scalar epsilon = 1e-6;  // For preventing degenerate numerical cases (e.g. division by zero)
   const Scalar tolerance = 10.0 * epsilon;  // For checking approx. equality
 
-  spdlog::debug("*** Testing projection model: {} ***", cam_cal);
+  INFO("Testing projection model: " << cam_cal);
 
   std::mt19937 gen(42);
   // Generate pixels around principal point
@@ -250,18 +266,18 @@ TEMPLATE_TEST_CASE("Test project and deproject", "[cam_package]", sym::LinearCam
   }
 }
 
-TEMPLATE_TEST_CASE("Test Camera class", "[cam_package]", sym::LinearCameraCal<double>,
-                   sym::LinearCameraCal<float>, sym::ATANCameraCal<double>,
+TEMPLATE_TEST_CASE("Test Camera class", "[cam_package]", sym::ATANCameraCal<double>,
                    sym::ATANCameraCal<float>, sym::DoubleSphereCameraCal<double>,
                    sym::DoubleSphereCameraCal<float>, sym::EquirectangularCameraCal<double>,
-                   sym::EquirectangularCameraCal<float>) {
+                   sym::EquirectangularCameraCal<float>, sym::LinearCameraCal<double>,
+                   sym::LinearCameraCal<float>) {
   using T = TestType;
   const T& cam_cal = GENERATE(from_range(CamCals<T>::Get()));
 
   using Scalar = typename T::Scalar;
   const Scalar epsilon = 1e-6;  // For preventing degenerate numerical cases (e.g. division by zero)
 
-  spdlog::debug("*** Testing Camera class with calibration: {} ***", cam_cal);
+  INFO("Testing Camera class with calibration: " << cam_cal);
 
   // Assume the principal point is at the center of the image
   Eigen::Matrix<int, 2, 1> image_size;
@@ -302,11 +318,11 @@ TEMPLATE_TEST_CASE("Test Camera class", "[cam_package]", sym::LinearCameraCal<do
   CHECK(is_valid == 1);
 }
 
-TEMPLATE_TEST_CASE("Test PosedCamera class", "[cam_package]", sym::LinearCameraCal<double>,
-                   sym::LinearCameraCal<float>, sym::ATANCameraCal<double>,
+TEMPLATE_TEST_CASE("Test PosedCamera class", "[cam_package]", sym::ATANCameraCal<double>,
                    sym::ATANCameraCal<float>, sym::DoubleSphereCameraCal<double>,
                    sym::DoubleSphereCameraCal<float>, sym::EquirectangularCameraCal<double>,
-                   sym::EquirectangularCameraCal<float>) {
+                   sym::EquirectangularCameraCal<float>, sym::LinearCameraCal<double>,
+                   sym::LinearCameraCal<float>) {
   using T = TestType;
   const T& cam_cal = GENERATE(from_range(CamCals<T>::Get()));
 
@@ -316,7 +332,7 @@ TEMPLATE_TEST_CASE("Test PosedCamera class", "[cam_package]", sym::LinearCameraC
   // For assessing approximate equality
   const Scalar tolerance = 50.0 * epsilon;
 
-  spdlog::debug("*** Testing PosedCamera class with calibration: {} ***", cam_cal);
+  INFO("Testing PosedCamera class with calibration: " << cam_cal);
 
   std::mt19937 gen(42);
   // Generate pixels around principal point
@@ -428,12 +444,12 @@ TEMPLATE_TEST_CASE("Test SphericalCameraCal named constructor", "[cam_package]",
   const Eigen::Matrix<Scalar, 2, 1> focal_length = Eigen::Matrix<Scalar, 2, 1>(100, 200);
   const Eigen::Matrix<Scalar, 2, 1> principal_point = Eigen::Matrix<Scalar, 2, 1>(300, 400);
   const Scalar critical_theta = 0.5;
-  const Eigen::Matrix<Scalar, 4, 1> distortion_coeffs =
-      Eigen::Matrix<Scalar, 4, 1>(0.1, 0.2, 0.3, 0.4);
+  const Eigen::Matrix<Scalar, 6, 1> distortion_coeffs =
+      (Eigen::Matrix<Scalar, 6, 1>() << 0.1, 0.2, 0.3, 0.4, 0.5, 0.6).finished();
   sym::SphericalCameraCal<Scalar> cal(focal_length, principal_point, critical_theta,
                                       distortion_coeffs);
   CHECK(cal.FocalLength() == focal_length);
   CHECK(cal.PrincipalPoint() == principal_point);
   CHECK(cal.Data()[4] == critical_theta);
-  CHECK(cal.Data().template tail<4>() == distortion_coeffs);
+  CHECK(cal.Data().template tail<6>() == distortion_coeffs);
 }

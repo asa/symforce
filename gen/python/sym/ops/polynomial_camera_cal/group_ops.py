@@ -4,17 +4,19 @@
 # Do NOT modify by hand.
 # -----------------------------------------------------------------------------
 
+# ruff: noqa: PLR0915, F401, PLW0211, PLR0914
+
 import math
 import typing as T
 
 import numpy
 
-import sym  # pylint: disable=unused-import
+import sym
 
 
 class GroupOps(object):
     """
-    Python GroupOps implementation for <class 'symforce.cam.polynomial_camera_cal.PolynomialCameraCal'>.
+    Python GroupOps implementation for :py:class:`symforce.cam.polynomial_camera_cal.PolynomialCameraCal`.
     """
 
     @staticmethod

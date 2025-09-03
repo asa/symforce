@@ -29,6 +29,8 @@ from symforce.codegen import types_package_codegen
 from symforce.type_helpers import symbolic_inputs
 from symforce.values import Values
 
+from . import PythonConfig
+
 CURRENT_DIR = Path(__file__).parent
 
 
@@ -92,8 +94,8 @@ class Codegen:
         config: codegen_config.CodegenConfig,
         name: T.Optional[str] = None,
         return_key: T.Optional[str] = None,
-        sparse_matrices: T.Sequence[str] = None,
-        docstring: str = None,
+        sparse_matrices: T.Optional[T.Sequence[str]] = None,
+        docstring: T.Optional[str] = None,
     ) -> None:
         """
         Creates the Codegen specification.
@@ -162,6 +164,7 @@ class Codegen:
         # All symbols in outputs must be present in inputs
         input_symbols_list = codegen_util.flat_symbols_from_values(inputs)
         input_symbols = set(input_symbols_list)
+
         if not self.output_symbols.issubset(input_symbols):
             missing_outputs = self.output_symbols - input_symbols
             error_msg = textwrap.dedent(
@@ -205,14 +208,17 @@ class Codegen:
         assert all(k.isidentifier() for k in outputs.keys())
 
         # Symbols in inputs must be unique
-        assert len(input_symbols) == len(
-            input_symbols_list
-        ), "Symbols in inputs must be unique. Duplicate symbols = {}".format(
-            [symbol for symbol in input_symbols_list if input_symbols_list.count(symbol) > 1]
+        assert len(input_symbols) == len(input_symbols_list), (
+            "Symbols in inputs must be unique. Duplicate symbols = {}".format(
+                [symbol for symbol in input_symbols_list if input_symbols_list.count(symbol) > 1]
+            )
         )
 
-        # Outputs must not have same variable names/keys as inputs
-        assert all(key not in list(outputs.keys()) for key in inputs.keys())
+        if any(key in outputs.keys() for key in inputs.keys()):
+            bad_keys = [key for key in inputs.keys() if key in outputs.keys()]
+            raise ValueError(
+                f"Outputs cannot share names with inputs, found duplicates: {bad_keys}"
+            )
 
         self.config = config
 
@@ -254,11 +260,11 @@ class Codegen:
         func: T.Callable,
         config: codegen_config.CodegenConfig,
         name: T.Optional[str] = None,
-        input_types: T.Sequence[T.ElementOrType] = None,
-        output_names: T.Sequence[str] = None,
-        return_key: str = None,
-        sparse_matrices: T.Sequence[str] = None,
-        docstring: str = None,
+        input_types: T.Optional[T.Sequence[T.ElementOrType]] = None,
+        output_names: T.Optional[T.Sequence[str]] = None,
+        return_key: T.Optional[str] = None,
+        sparse_matrices: T.Optional[T.Sequence[str]] = None,
+        docstring: T.Optional[str] = None,
     ) -> Codegen:
         """
         Creates a Codegen object from a symbolic python function.
@@ -268,19 +274,20 @@ class Codegen:
                 Additionally, keyword only arguments will be set to their default values and not
                 included in the signature of the generated function.
             input_types: List of types of the inputs to the given function.  This is optional; if
-                `func` has type annotations, `input_types` can be deduced from those.  Note that
+                ``func`` has type annotations, ``input_types`` can be deduced from those.  Note that
                 if the type annotation doesn't match what you want the arguments to be, you need
-                to specify manually, for instance a function add(x: T.Any, y: T.Any) -> T.Any that
-                you want to use to generate add(x: sf.Matrix33, y: sf.Matrix33) -> sf.Matrix33
+                to specify manually, for instance a function ``add(x: T.Any, y: T.Any) -> T.Any``
+                that you want to use to generate
+                ``add(x: sf.Matrix33, y: sf.Matrix33) -> sf.Matrix33``
             config: Programming language and configuration in which the function is to be generated
             name: Name of the function to be generated; if not provided, will be deduced from the
-                function name.  Must be provided if `func` is a lambda
-            output_names: Names to give to outputs returned from `func`.  If None (the default),
-                names will be chosen as f"res{i}" for functions that return multiple results, or
-                "res" for functions that return a single result
+                function name.  Must be provided if ``func`` is a lambda
+            output_names: Names to give to outputs returned from ``func``.  If ``None`` (the
+                default), names will be chosen as ``f"res{i}"`` for functions that return multiple
+                results, or ``"res"`` for functions that return a single result
             sparse_matrices: Outputs with this key will be returned as sparse matrices
             return_key: If multiple objects are returned, the generated function will return
-                the object with this name (must be in output_names)
+                the object with this name (must be in ``output_names``)
             docstring: The docstring to be used with the generated function.  Default is to use the
                        existing docstring
         """
@@ -304,7 +311,9 @@ class Codegen:
                 output_names = [f"res{i}" for i in range(len(res))]
             # If a return key is given, it must be valid (i.e. in output_names)
             if return_key is not None:
-                assert return_key in output_names, "Return key not found in named outputs"
+                assert return_key in output_names, (
+                    f"Return key {return_key} not found in named outputs {output_names}"
+                )
         else:
             # Function returns single object
             output_terms = (res,)
@@ -358,6 +367,9 @@ class Codegen:
         data["python_util"] = python_util
         data["typing_util"] = typing_util
         data["lcm_type_t_include_dir"] = "<lcmtypes/sym/type_t.hpp>"
+
+        # TODO(aaron): Replace uses of members of sf above
+        data["sf"] = sf
 
         def is_symbolic(T: T.Any) -> bool:
             return isinstance(T, (sf.Expr, sf.Symbol))
@@ -431,25 +443,27 @@ class Codegen:
 
     def generate_function(
         self,
-        output_dir: T.Openable = None,
-        lcm_bindings_output_dir: T.Openable = None,
-        shared_types: T.Mapping[str, str] = None,
+        output_dir: T.Optional[T.Openable] = None,
+        lcm_bindings_output_dir: T.Optional[T.Openable] = None,
+        shared_types: T.Optional[T.Mapping[str, str]] = None,
         namespace: str = "sym",
-        generated_file_name: str = None,
+        generated_file_name: T.Optional[str] = None,
         skip_directory_nesting: bool = False,
     ) -> GeneratedPaths:
         """
         Generates a function that computes the given outputs from the given inputs.
 
-        Usage for generating multiple functions with a shared type:
+        Usage for generating multiple functions with a shared type::
+
             codegen_obj_1.generate_function(namespace="my_namespace")
             shared_types = {"my_type": "my_namespace.my_type_t"}
             codegen_obj_2.generate_function(shared_types=shared_types, namespace="my_namespace")
 
-        In the example above, both codegen_obj_1 and codegen_obj_2 use the type "my_type". During
-        the first call to "generate_function" we generate the type "my_type", and it then becomes
-        a shared type for the second call to "generate_function". This signals that "my_type" does
-        not need to be generated during the second call to "generate_function" as it already exists.
+        In the example above, both ``codegen_obj_1`` and ``codegen_obj_2`` use the type
+        ``"my_type"``. During the first call to :meth:`generate_function` we generate the type
+        ``"my_type"``, and it then becomes a shared type for the second call to
+        :meth:`generate_function`. This signals that ``"my_type"`` does not need to be generated
+        during the second call to :meth:`generate_function` as it already exists.
 
         Args:
             output_dir: Directory in which to output the generated function. Any generated types will
@@ -464,9 +478,9 @@ class Codegen:
             skip_directory_nesting: Generate the output file directly into output_dir instead of
                                     adding the usual directory structure inside output_dir
         """
-        assert (
-            self.name is not None
-        ), "Name should be set either at construction or by with_jacobians"
+        assert self.name is not None, (
+            "Name should be set either at construction or by with_jacobians"
+        )
 
         if not self.name.isidentifier():
             raise InvalidNameError(
@@ -538,8 +552,9 @@ class Codegen:
         self.namespace = namespace
 
         template_data = dict(self.common_data(), spec=self)
-        template_dir = self.config.template_dir()
+        self.config.update_template_data(data=template_data)
 
+        template_dir = self.config.template_dir()
         backend_name = self.config.backend_name()
         if skip_directory_nesting:
             out_function_dir = output_dir
@@ -578,7 +593,7 @@ class Codegen:
 
     @staticmethod
     def default_docstring(
-        inputs: Values, outputs: Values, original_function: T.Callable = None
+        inputs: Values, outputs: Values, original_function: T.Optional[T.Callable] = None
     ) -> str:
         """
         Create a default docstring if no other is available from the function or caller.
@@ -600,19 +615,20 @@ class Codegen:
             This function was autogenerated from a symbolic function. Do not modify by hand.
 
             Symbolic function: {original_function.__name__}
-
-            Args:
             """
         else:
             docstring = """
             This function was autogenerated. Do not modify by hand.
-
-            Args:
             """
 
         arg_descriptions = "".join(
             [f"    {name}: {input_type}\n" for name, input_type in zip(input_names, input_types)]
         )
+
+        if arg_descriptions:
+            docstring += """
+            Args:
+            """
 
         output_descriptions = "".join(
             [
@@ -640,9 +656,9 @@ class Codegen:
         include_results: bool,
         linearization_mode: T.Optional[LinearizationMode],
     ) -> str:
-        assert (
-            self.name is not None
-        ), "Codegen name must have been provided already to automatically generate a name with derivatives"
+        assert self.name is not None, (
+            "Codegen name must have been provided already to automatically generate a name with derivatives"
+        )
 
         name = self.name
         if linearization_mode == LinearizationMode.FULL_LINEARIZATION:
@@ -666,22 +682,22 @@ class Codegen:
 
     def with_linearization(
         self,
-        which_args: T.Sequence[str] = None,
+        which_args: T.Optional[T.Sequence[str]] = None,
         include_result: bool = True,
-        name: str = None,
+        name: T.Optional[str] = None,
         linearization_mode: LinearizationMode = LinearizationMode.FULL_LINEARIZATION,
         sparse_linearization: bool = False,
-        custom_jacobian: sf.Matrix = None,
+        custom_jacobian: T.Optional[sf.Matrix] = None,
     ) -> Codegen:
         """
         Given a codegen object that takes some number of inputs and computes a single result,
         create a new codegen object that additionally computes the jacobian (or the full
         Gauss-Newton linearization) with respect to the given input arguments.
 
-        The jacobians are in the tangent spaces of the inputs and outputs, see jacobian_helpers.py
-        for more information.
+        The jacobians are in the tangent spaces of the inputs and outputs, see
+        :mod:`jacobian_helpers.py <symforce.jacobian_helpers>` for more information.
 
-        The previous codegen object (the `self` argument to this function) is unmodified by this
+        The previous codegen object (the ``self`` argument to this function) is unmodified by this
         function and still valid after this function returns.
 
         Args:
@@ -816,10 +832,10 @@ class Codegen:
 
     def with_jacobians(
         self,
-        which_args: T.Sequence[str] = None,
+        which_args: T.Optional[T.Sequence[str]] = None,
         which_results: T.Sequence[int] = (0,),
         include_results: bool = True,
-        name: str = None,
+        name: T.Optional[str] = None,
         sparse_jacobians: bool = False,
     ) -> Codegen:
         """
@@ -922,3 +938,33 @@ class Codegen:
             sparse_matrices=sparse_matrices,
             docstring="\n".join(docstring_lines),
         )
+
+    def lambdify(self) -> T.Callable:
+        """
+        Generates a numerical function from an existing codegen object. Wraps codegen
+        generate function and load function methods.
+
+        Args:
+            self: Existing codegen object with a PythonConfig
+
+        Returns:
+            A numerical function generated from the codegen object
+
+        See Also:
+            :meth:`lambdify <symforce.util.lambdify>`
+        """
+        if not isinstance(self.config, PythonConfig):
+            raise TypeError("Lambdify is only supported for Python codegen objects.")
+
+        name_was_none = False
+        if self.name is None:
+            self.name = "lambda"
+            name_was_none = True
+
+        data = self.generate_function(namespace="lambda")
+        generated_function = codegen_util.load_generated_function(
+            self.name, data.function_dir, evict=not self.config.use_numba
+        )
+        if name_was_none:
+            self.name = None
+        return generated_function

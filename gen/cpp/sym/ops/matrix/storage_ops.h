@@ -9,11 +9,11 @@
 #include <cassert>
 #include <random>
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 #include <lcmtypes/sym/type_t.hpp>
 
-#include "../storage_ops.h"
+#include <sym/ops/storage_ops.h>
 
 namespace sym {
 

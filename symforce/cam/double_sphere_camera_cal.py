@@ -16,15 +16,16 @@ from .camera_cal import CameraCal
 class DoubleSphereCameraCal(CameraCal):
     """
     Camera model where a point is consecutively projected onto two unit spheres
-    with centers shifted by `xi`, then projected into the image plane using the
-    pinhole model shifted by `alpha / (1 - alpha)`.
+    with centers shifted by ``xi``, then projected into the image plane using the
+    pinhole model shifted by ``alpha / (1 - alpha)``.
 
     There are important differences here from the derivation in the paper and in other open-source
     packages with double sphere models; see notebooks/double_sphere_derivation.ipynb for more
     information.
 
     The storage for this class is:
-    [ fx fy cx cy xi alpha ]
+
+        [ fx fy cx cy xi alpha ]
 
     TODO(aaron): Create double_sphere_derivation.ipynb
 
@@ -92,8 +93,8 @@ class DoubleSphereCameraCal(CameraCal):
 
         # Follows equations (40) to (45)
 
-        d1 = sf.sqrt(x ** 2 + y ** 2 + z ** 2 + epsilon ** 2)
-        d2 = sf.sqrt(x ** 2 + y ** 2 + (xi * d1 + z) ** 2 + epsilon ** 2)
+        d1 = sf.sqrt(x**2 + y**2 + z**2 + epsilon**2)
+        d2 = sf.sqrt(x**2 + y**2 + (xi * d1 + z) ** 2 + epsilon**2)
 
         z_effective = alpha_safe * d2 + (1 - alpha_safe) * (xi * d1 + z)
 
@@ -111,8 +112,8 @@ class DoubleSphereCameraCal(CameraCal):
 
         # NOTE(aaron): w2 here is NOT equal to the w2 in the paper - we're pretty confident this
         # one is correct though (for all domains, including the domain in the paper)
-        w2_discriminant = w1 ** 2 * xi ** 2 - xi ** 2 + 1
-        w2 = w1 ** 2 * xi - w1 * sf.sqrt(sf.Max(w2_discriminant, sf.sqrt(epsilon))) - xi
+        w2_discriminant = w1**2 * xi**2 - xi**2 + 1
+        w2 = w1**2 * xi - w1 * sf.sqrt(sf.Max(w2_discriminant, sf.sqrt(epsilon))) - xi
 
         need_linear_constraint = sf.is_nonnegative(w2_discriminant)
 
@@ -148,22 +149,22 @@ class DoubleSphereCameraCal(CameraCal):
         r2 = m_xy.squared_norm()
 
         # Compute m_z (eq 50)
-        m_z_disciminant = 1 - (2 * alpha - 1) * r2
-        linear_is_valid = sf.is_nonnegative(m_z_disciminant)
+        m_z_discriminant = 1 - (2 * alpha - 1) * r2
+        linear_is_valid = sf.is_nonnegative(m_z_discriminant)
 
         # This denominator is not always positive so we push it away from 0, see:
         # https://www.wolframalpha.com/input/?i=Plot%5Balpha+*+Sqrt%5B1+-+%282+*+alpha+-+1%29+*+r%5E2%5D+%2B+1+-+alpha%2C+%7Balpha%2C+-2%2C+1%7D%2C+%7Br%2C+0%2C+10%7D%5D
-        m_z_denominator = alpha * sf.sqrt(sf.Max(m_z_disciminant, epsilon)) + 1 - alpha
+        m_z_denominator = alpha * sf.sqrt(sf.Max(m_z_discriminant, epsilon)) + 1 - alpha
         m_z_denominator_safe = m_z_denominator + sf.sign_no_zero(m_z_denominator) * epsilon
-        m_z = (1 - alpha ** 2 * r2) / m_z_denominator_safe
+        m_z = (1 - alpha**2 * r2) / m_z_denominator_safe
 
         # Compute the scalar multiplier on m (from eq 46)
-        m_scale_denominator = m_z ** 2 + r2
+        m_scale_denominator = m_z**2 + r2
         m_scale_denominator_safe = (
             m_scale_denominator + sf.sign_no_zero(m_scale_denominator) * epsilon
         )
 
-        m_scale_discriminant = m_z ** 2 + (1 - xi ** 2) * r2
+        m_scale_discriminant = m_z**2 + (1 - xi**2) * r2
 
         # NOTE(aaron): This additional check is always satisfied when xi is strictly between -1 and
         # 1, but we allow xi > 1, where this becomes necessary.  The xi > 1 domain better fits some

@@ -5,11 +5,17 @@
  **/
 
 #include <lcm/lcm_coretypes.h>
+#include <lcm/lcm_cpptypes.hpp>
 
 #ifndef __sym_d_t_hpp__
 #define __sym_d_t_hpp__
 
+#if defined(SKYMARSHAL_PRINTING_ENABLED)
+#include <lcm/lcm_reflection.hpp>
+#include <array>
+#endif
 #include <ostream>
+
 #include "lcmtypes/eigen_lcm/Vector2d.hpp"
 
 namespace sym
@@ -65,7 +71,7 @@ class d_t
          * message type, and is a fingerprint on the message type definition, not on
          * the message contents.
          */
-        inline static int64_t getHash();
+        inline static uint64_t getHash();
 
         using type_name_array_t = const char[4];
 
@@ -75,6 +81,10 @@ class d_t
          * Returns "d_t"
          */
         inline static constexpr const char* getTypeName();
+
+        using package_name_array_t = const char[4];
+
+        inline static constexpr package_name_array_t* getPackageNameArrayPtr();
 
         /**
          * Returns "sym"
@@ -106,18 +116,82 @@ class d_t
         inline bool operator==(const d_t& other) const;
         inline bool operator!=(const d_t& other) const;
 
-        // Ability to print to standard streams as well as the fmt library.
-        friend std::ostream& operator<<(std::ostream& stream, const d_t& obj) {
 #if defined(SKYMARSHAL_PRINTING_ENABLED)
-            stream << "d_t(";
-            stream << "x=" << obj.x << ", ";
-            stream << "y=<EIGEN_LCM TYPE eigen_lcm.Vector2d>";
-            stream << ")";
-#else
-            stream << "<FORMATTING DISABLED>";
-#endif
-            return stream;
+        constexpr static std::array<const char*, 2> fields()
+        {
+            return {{
+                "x",
+                "y",
+            }};
         }
+
+        // Given a string field path, translate the entire path to field / list indices within this struct.
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field.
+        static uint32_t translate_fields(const char* const _fields[], uint32_t _field_indices_out[], uint32_t _num_fields) {
+            if (strcmp(_fields[0], fields()[0]) == 0) {
+                _field_indices_out[0] = 0;
+                uint32_t ret = lcm::translate_fields<decltype(d_t::x)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            if (strcmp(_fields[0], fields()[1]) == 0) {
+                _field_indices_out[0] = 1;
+                uint32_t ret = lcm::translate_fields<decltype(d_t::y)>(_fields + 1, _field_indices_out + 1, _num_fields - 1);
+                return ret == 0 ? ret : ret + 1;
+            }
+            return 1;
+
+        }
+
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field.
+        uint32_t show_field(std::ostream& _stream, const uint32_t _field_indices[], uint32_t _num_fields, uint32_t _indent) const
+        {
+            uint32_t ret;
+            switch (_field_indices[0]) {
+                case 0:
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, x, _indent);
+                return ret == 0 ? ret : ret + 1;
+                case 1:
+                ret = lcm::show_field(_stream, _field_indices + 1, _num_fields - 1, y, _indent);
+                return ret == 0 ? ret : ret + 1;
+                default:
+                return 1;
+            }
+        }
+
+        // Ability to print to standard streams as well as the fmt library.
+        friend std::ostream& operator<<(std::ostream& _stream, const d_t& obj) {
+            lcm::show_field(_stream, nullptr, 0, obj, 0);
+            return _stream;
+        }
+
+#else
+        friend std::ostream& operator<<(std::ostream& _stream, const d_t& obj) {
+            _stream << "<FORMATTING DISABLED>";
+            return _stream;
+        }
+#endif
+
+#if defined(SKYMARSHAL_STORING_ENABLED)
+        // Return value is 0 if the operation succeeded.
+        // If the operation failed, return value is equal to 1 + the index of the first invalid field,
+        // 1 + field_size if there are not enough fields, or 2 + field_size if the value is invalid.
+        __attribute__((nodiscard)) uint32_t store_field(const uint32_t _field_indices[], uint32_t _num_fields, const char* const _value)
+        {
+            uint32_t ret;
+            switch (_field_indices[0]) {
+                case 0:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, x, _value);
+                return ret == 0 ? ret : ret + 1;
+                case 1:
+                ret = lcm::store_field(_field_indices + 1, _num_fields - 1, y, _value);
+                return ret == 0 ? ret : ret + 1;
+                default:
+                return 1;
+            }
+        }
+#endif
 };
 
 d_t::d_t(
@@ -129,9 +203,9 @@ d_t::d_t(
 __lcm_buffer_size d_t::encode(void *buf, __lcm_buffer_size offset, __lcm_buffer_size maxlen) const
 {
     __lcm_buffer_size pos = 0, tlen;
-    int64_t hash = (int64_t)getHash();
+    uint64_t hash = getHash();
 
-    tlen = __int64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
+    tlen = __uint64_t_encode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if(tlen < 0) return tlen; else pos += tlen;
 
     tlen = this->_encodeNoHash(buf, offset + pos, maxlen - pos);
@@ -144,10 +218,10 @@ __lcm_buffer_size d_t::decode(const void *buf, __lcm_buffer_size offset, __lcm_b
 {
     __lcm_buffer_size pos = 0, thislen;
 
-    int64_t msg_hash;
-    thislen = __int64_t_decode_array(buf, offset + pos, maxlen - pos, &msg_hash, 1);
+    uint64_t hash;
+    thislen = __uint64_t_decode_array(buf, offset + pos, maxlen - pos, &hash, 1);
     if (thislen < 0) return thislen; else pos += thislen;
-    if (msg_hash != getHash()) return -1;
+    if (hash != getHash()) return -1;
 
     thislen = this->_decodeNoHash(buf, offset + pos, maxlen - pos);
     if (thislen < 0) return thislen; else pos += thislen;
@@ -160,9 +234,9 @@ __lcm_buffer_size d_t::getEncodedSize() const
     return 8 + _getEncodedSizeNoHash();
 }
 
-int64_t d_t::getHash()
+uint64_t d_t::getHash()
 {
-    static int64_t hash = _computeHash(NULL);
+    static uint64_t hash = _computeHash(NULL);
     return hash;
 }
 
@@ -175,9 +249,13 @@ constexpr const char* d_t::getTypeName()
     return *d_t::getTypeNameArrayPtr();
 }
 
+constexpr d_t::package_name_array_t* d_t::getPackageNameArrayPtr() {
+    return &"sym";
+}
+
 constexpr const char * d_t::getPackageName()
 {
-    return "sym";
+    return *d_t::getPackageNameArrayPtr();
 }
 
 __lcm_buffer_size d_t::_encodeNoHash(void *buf, __lcm_buffer_size offset, __lcm_buffer_size maxlen) const

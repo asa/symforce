@@ -182,12 +182,11 @@ void RunBundleAdjustment() {
   // Create and set up Optimizer
   const sym::optimizer_params_t optimizer_params = sym::example_utils::OptimizerParams();
 
-  sym::Optimizerd optimizer(optimizer_params, {BuildFactor()}, params.epsilon,
-                            "BundleAdjustmentOptimizer", {}, params.debug_stats,
-                            params.check_derivatives);
+  sym::Optimizerd optimizer(optimizer_params, {BuildFactor()}, "BundleAdjustmentOptimizer", {},
+                            params.epsilon);
 
   // Optimize
-  const sym::OptimizationStatsd stats = optimizer.Optimize(values);
+  const sym::Optimizerd::Stats stats = optimizer.Optimize(values);
 
   // Print out results
   spdlog::info("Optimized State:");
@@ -211,9 +210,11 @@ void RunBundleAdjustment() {
   spdlog::info("Lambda: {}", last_iter.current_lambda);
   spdlog::info("Initial error: {}", first_iter.new_error);
   spdlog::info("Final error: {}", best_iter.new_error);
+  spdlog::info("Status: {}", stats.status);
 
   // Check successful convergence
   SYM_ASSERT(best_iter.new_error < 10);
+  SYM_ASSERT(stats.status == sym::optimization_status_t::SUCCESS);
 }
 
 }  // namespace bundle_adjustment_fixed_size

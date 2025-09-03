@@ -3,23 +3,28 @@
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
 
+from __future__ import annotations
+
 import symforce.internal.symbolic as sf
 from symforce import ops
 from symforce import typing as T
 
 from .group import Group
 
+if T.TYPE_CHECKING:
+    from symforce import geo
+
 
 class LieGroup(Group):
     """
-    Interface for objects that implement the lie group concept. Because this
-    class is registered using ClassLieGroupOps (see bottom of this file), any
-    object that inherits from LieGroup and that implements the functions defined
-    in this class can be used with the LieGroupOps concept.
+    Interface for objects that implement the lie group concept. Because this class is registered
+    using :class:`symforce.ops.impl.class_lie_group_ops.ClassLieGroupOps` (see bottom of this file),
+    any object that inherits from ``LieGroup`` and that implements the functions defined in this
+    class can be used with the LieGroupOps concept.
 
-    Note that LieGroup is a subclass of Group which is a subclass of Storage,
-    meaning that a LieGroup object can be also be used with GroupOps and
-    StorageOps (assuming the necessary functions are implemented).
+    Note that ``LieGroup`` is a subclass of :class:`.group.Group` which is a subclass of
+    :class:`.storage.Storage`, meaning that a ``LieGroup`` object can be also be used with GroupOps
+    and StorageOps (assuming the necessary functions are implemented).
     """
 
     # Type that represents this or any subclasses
@@ -70,6 +75,26 @@ class LieGroup(Group):
         Tangent space perturbation that conceptually represents "b - self" if self is a vector.
         """
         return self.between(b).to_tangent(epsilon=epsilon)
+
+    def jacobian(
+        self: LieGroupT, X: T.Any, tangent_space: bool = True, epsilon: T.Scalar = sf.epsilon()
+    ) -> geo.Matrix:
+        """
+        Computes the jacobian of this LieGroup element with respect to the input X, where X is
+        anything that supports LieGroupOps
+
+        If tangent_space is True, the jacobian is computed in the local coordinates of the tangent
+        spaces around self and X. If tangent_space is False, the jacobian is computed in the storage
+        spaces of self and X.
+
+        See Also:
+            :func:`symforce.ops.lie_group_ops.LieGroupOps.jacobian`
+            :func:`symforce.jacobian_helpers.tangent_jacobians`
+
+        Returns: the jacobian matrix of shape MxN, where M is the dimension of the tangent (or
+            storage) space of self and N is the dimension of the tangent (or storage) space of X.
+        """
+        return ops.LieGroupOps.jacobian(self, X, tangent_space, epsilon=epsilon)
 
 
 from ..impl.class_lie_group_ops import ClassLieGroupOps

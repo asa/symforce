@@ -3,7 +3,6 @@
 # This source code is under the Apache 2.0 license found in the LICENSE file.
 # ----------------------------------------------------------------------------
 
-import dataclasses
 import math
 import pickle
 
@@ -13,13 +12,18 @@ from scipy import sparse
 from lcmtypes.sym._index_entry_t import index_entry_t
 from lcmtypes.sym._index_t import index_t
 from lcmtypes.sym._key_t import key_t
+from lcmtypes.sym._levenberg_marquardt_solver_failure_reason_t import (
+    levenberg_marquardt_solver_failure_reason_t,
+)
 from lcmtypes.sym._linearized_dense_factor_t import linearized_dense_factor_t
 from lcmtypes.sym._optimization_iteration_t import optimization_iteration_t
 from lcmtypes.sym._optimization_stats_t import optimization_stats_t
+from lcmtypes.sym._optimization_status_t import optimization_status_t
 from lcmtypes.sym._optimizer_params_t import optimizer_params_t
 from lcmtypes.sym._values_t import values_t
 
 import sym
+import symforce.symbolic as sf
 from symforce import cc_sym
 from symforce import typing as T
 from symforce.opt import optimizer
@@ -31,7 +35,7 @@ class SymforceCCSymTest(TestCase):
     Test cc_sym.
     """
 
-    def test_key(self) -> None:
+    def test_key(self) -> None:  # noqa: PLR0915
         """
         Tests:
             cc_sym.Key
@@ -64,15 +68,32 @@ class SymforceCCSymTest(TestCase):
             self.assertEqual(key.sub, 1)
             self.assertEqual(key.super, 2)
 
-        with self.subTest(msg="static method with_super works as intended"):
-            letter = "a"
-            sub = 1
-            superscript = 2
-            key_base = cc_sym.Key(letter=letter, sub=sub)
-            key_with_super = cc_sym.Key.with_super(key=key_base, super=superscript)
-            self.assertEqual(key_with_super.letter, letter)
-            self.assertEqual(key_with_super.sub, sub)
-            self.assertEqual(key_with_super.super, superscript)
+        with self.subTest(msg="Method with_letter works as intended"):
+            key = cc_sym.Key(letter="a", sub=1, super=2)
+
+            new_letter = "b"
+            new_key = key.with_letter(letter=new_letter)
+            self.assertEqual(new_key.letter, new_letter)
+            self.assertEqual(new_key.sub, key.sub)
+            self.assertEqual(new_key.super, key.super)
+
+        with self.subTest(msg="Method with_sub works as intended"):
+            key = cc_sym.Key(letter="a", sub=1, super=2)
+
+            new_sub = 3
+            new_key = key.with_sub(sub=new_sub)
+            self.assertEqual(new_key.letter, key.letter)
+            self.assertEqual(new_key.sub, new_sub)
+            self.assertEqual(new_key.super, key.super)
+
+        with self.subTest(msg="Method with_super works as intended"):
+            key = cc_sym.Key(letter="a", sub=1, super=2)
+
+            new_super = 4
+            new_key = key.with_super(super=new_super)
+            self.assertEqual(new_key.letter, key.letter)
+            self.assertEqual(new_key.sub, key.sub)
+            self.assertEqual(new_key.super, new_super)
 
         letter_sub_super_samples: T.List[
             T.Union[T.Tuple[str], T.Tuple[str, int], T.Tuple[str, int, int]]
@@ -107,36 +128,16 @@ class SymforceCCSymTest(TestCase):
                 key_dumps = pickle.dumps(key)
                 self.assertEqual(key, pickle.loads(key_dumps))
 
-    def test_values(self) -> None:
+    def test_values(self) -> None:  # noqa: PLR0915
         """
         Tests:
             cc_sym.Values
             cc_sym.Key
-            Implicitly tests conversions of sym types:
-                sym.Rot2
-                sym.Rot3
-                sym.Pose2
-                sym.Pose3
-                sym.ATANCameraCal
-                sym.DoubleSphereCameraCal
-                sym.EquirectangularCameraCal
-                sym.LinearCameraCal
-                sym.PolynomialCameraCal
-                sym.SphericalCameraCal
+            Implicitly tests conversions of all sym types
         """
 
-        supported_types = [
-            T.Scalar,
-            sym.Rot2,
-            sym.Rot3,
-            sym.Pose2,
-            sym.Pose3,
-            sym.ATANCameraCal,
-            sym.DoubleSphereCameraCal,
-            sym.EquirectangularCameraCal,
-            sym.LinearCameraCal,
-            sym.PolynomialCameraCal,
-            sym.SphericalCameraCal,
+        supported_types = [T.Scalar] + [
+            getattr(sym, cls.__name__) for cls in sf.GEO_TYPES + sf.CAM_TYPES
         ]
 
         def instantiate_type(tp: T.Type[T.Any]) -> T.Any:
@@ -152,9 +153,7 @@ class SymforceCCSymTest(TestCase):
                 return tp.from_storage([0] * tp.storage_dim())
 
         for tp in supported_types:
-            with self.subTest(
-                msg=f"Can set and retrieve {tp.__name__}"  # pylint: disable=no-member
-            ):
+            with self.subTest(msg=f"Can set and retrieve {tp.__name__}"):
                 values = cc_sym.Values()
                 val: T.Any = instantiate_type(tp)
                 values.set(cc_sym.Key("v"), val)
@@ -293,9 +292,7 @@ class SymforceCCSymTest(TestCase):
             self.assertEqual(values.cleanup(), 1)
 
         for tp in supported_types:
-            with self.subTest(
-                msg=f"Can call set as a function of index_entry_t and {tp.__name__}"  # pylint: disable=no-member
-            ):
+            with self.subTest(msg=f"Can call set as a function of index_entry_t and {tp.__name__}"):
                 values = cc_sym.Values()
                 a = cc_sym.Key("a")
                 values.set(a, instantiate_type(tp))
@@ -322,7 +319,7 @@ class SymforceCCSymTest(TestCase):
             self.assertEqual(values_1.at(key_b), 5)
             self.assertEqual(values_1.at(key_c), 6)
 
-        with self.subTest(msg="Test Values.update (two index overlaod) works as expected"):
+        with self.subTest(msg="Test Values.update (two index overload) works as expected"):
             key_a = cc_sym.Key("a")
             key_b = cc_sym.Key("b")
             key_c = cc_sym.Key("c")
@@ -416,7 +413,7 @@ class SymforceCCSymTest(TestCase):
         # Output terms
         res = [cos]
         jacobian = [-sin_2]
-        hessian = [(1.0 / 4.0) * sin ** 2]
+        hessian = [(1.0 / 4.0) * sin**2]
         rhs = [-cos * sin_2]
         return res, jacobian, hessian, rhs
 
@@ -581,7 +578,6 @@ class SymforceCCSymTest(TestCase):
     def compare_optimization_stats(
         stats1: cc_sym.OptimizationStats, stats2: cc_sym.OptimizationStats
     ) -> bool:
-
         TVar = T.TypeVar("TVar")
 
         # NOTE(brad): Exists to make mypy happy
@@ -594,7 +590,8 @@ class SymforceCCSymTest(TestCase):
         return (
             stats1.iterations == stats2.iterations
             and stats1.best_index == stats2.best_index
-            and stats1.early_exited == stats2.early_exited
+            and stats1.status == stats2.status
+            and stats1.failure_reason == stats2.failure_reason
             and (
                 stats1.best_linearization is None
                 and stats2.best_linearization is None
@@ -616,10 +613,11 @@ class SymforceCCSymTest(TestCase):
             self.assertIsInstance(stats.iterations, list)
             stats.iterations = [optimization_iteration_t() for _ in range(5)]
 
-        with self.subTest(msg="Can read and write to best_index and early_exited"):
+        with self.subTest(msg="Can read and write to best_index and status"):
             stats = cc_sym.OptimizationStats()
             stats.best_index = stats.best_index
-            stats.early_exited = stats.early_exited
+            stats.status = stats.status
+            stats.failure_reason = stats.failure_reason
 
         with self.subTest(msg="Can read and write to best_linearization"):
             stats = cc_sym.OptimizationStats()
@@ -633,11 +631,11 @@ class SymforceCCSymTest(TestCase):
             self.assertIsInstance(stats.get_lcm_type(), optimization_stats_t)
 
         with self.subTest(msg="Can pickle cc_sym.OptimizationStats"):
-
             stats = cc_sym.OptimizationStats()
             stats.iterations = [optimization_iteration_t(iteration=i) for i in range(4)]
             stats.best_index = 1
-            stats.early_exited = True
+            stats.status = optimization_status_t.SUCCESS
+            stats.failure_reason = levenberg_marquardt_solver_failure_reason_t.INVALID.value
             stats.best_linearization = None
 
             self.assertTrue(
@@ -652,7 +650,7 @@ class SymforceCCSymTest(TestCase):
                 self.compare_optimization_stats(stats, pickle.loads(pickle.dumps(stats)))
             )
 
-    def test_optimizer(self) -> None:
+    def test_optimizer(self) -> None:  # noqa: PLR0915
         """
         Tests:
             cc_sym.default_optimizer_params
@@ -679,16 +677,11 @@ class SymforceCCSymTest(TestCase):
                 epsilon=1e-6,
                 name="OptimizeTest",
                 keys=[],
-                debug_stats=False,
-                check_derivatives=False,
             )
 
-        make_opt = lambda: cc_sym.Optimizer(
-            params=cc_sym.default_optimizer_params(),
-            factors=[pi_factor],
-            debug_stats=False,
-            include_jacobians=True,
-        )
+        params_with_jacobians = cc_sym.default_optimizer_params()
+        params_with_jacobians.include_jacobians = True
+        make_opt = lambda: cc_sym.Optimizer(params=params_with_jacobians, factors=[pi_factor])
 
         with self.subTest(msg="Optimizer.factors has been wrapped"):
             opt = make_opt()
@@ -779,11 +772,12 @@ class SymforceCCSymTest(TestCase):
 
             lin.set_initialized()
             self.assertIsInstance(lin.error(), T.Scalar)
-            self.assertIsInstance(lin.linear_error(x_update=np.array([0.01])), T.Scalar)
-            lin.linear_error(np.array([0.01]))
+            self.assertIsInstance(
+                lin.linear_delta_error(x_update=np.array([0.01]), damping_vector=np.array([0.0])),
+                T.Scalar,
+            )
 
         with self.subTest(msg="cc_sym.Linearization is pickleable"):
-
             linearization = cc_sym.Linearization()
             linearization.residual = np.array([1, 2, 3])
             linearization.jacobian = sparse.csc_matrix([[1, 2], [3, 4], [5, 6]])
@@ -847,13 +841,8 @@ class SymforceCCSymTest(TestCase):
     def test_default_params_match(self) -> None:
         """
         Check that the default params in C++ and Python are the same
-
-        Except verbose, which defaults to False in C++ and True in Python
         """
-        self.assertEqual(
-            cc_sym.default_optimizer_params(),
-            optimizer_params_t(**dataclasses.asdict(optimizer.Optimizer.Params(verbose=False))),
-        )
+        self.assertEqual(cc_sym.default_optimizer_params(), optimizer.OptimizerParams().to_lcm())
 
 
 if __name__ == "__main__":

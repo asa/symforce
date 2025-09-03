@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 
 import symforce.symbolic as sf
 from symforce import logger
@@ -58,11 +59,15 @@ class UnaryBinaryExpressionGen:
         self.ops = list(self.unary_ops) + list(self.binary_ops)
         self.ops_dict = {op.name: op for op in self.ops}
 
-        self.unary_ops_probs = np.array([op.prob for op in self.unary_ops])
-        self.unary_ops_probs = self.unary_ops_probs / sum(self.unary_ops_probs)
+        self.unary_ops_probs: np.ndarray = np.array(
+            [op.prob for op in self.unary_ops], dtype=np.float64
+        )
+        self.unary_ops_probs /= sum(self.unary_ops_probs)
 
-        self.binary_ops_probs = np.array([op.prob for op in self.binary_ops])
-        self.binary_ops_probs = self.binary_ops_probs / sum(self.binary_ops_probs)
+        self.binary_ops_probs: np.ndarray = np.array(
+            [op.prob for op in self.binary_ops], dtype=np.float64
+        )
+        self.binary_ops_probs /= sum(self.binary_ops_probs)
 
         # D[e][n] represents the number of different binary trees with n nodes
         # that can be generated from e empty nodes
@@ -90,8 +95,10 @@ class UnaryBinaryExpressionGen:
     ) -> T.List[np.ndarray]:
         """
         Enumerate the number of possible unary-binary trees that can be generated from empty nodes.
+
         D[e][n] represents the number of different binary trees with n nodes that
-        can be generated from e empty nodes, using the following recursion:
+        can be generated from e empty nodes, using the following recursion::
+
             D(0, n) = 0
             D(e, 0) = L ** e
             D(e, n) = L * D(e - 1, n) + p_1 * D(e, n - 1) + p_2 * D(e + 1, n - 1)
@@ -99,7 +106,7 @@ class UnaryBinaryExpressionGen:
         # enumerate possible trees
         # first generate the tranposed version of D, then transpose it
 
-        D = [np.array([0] + ([num_leaves ** e for e in range(1, 2 * max_ops + 1)]))]
+        D = [np.array([0] + ([num_leaves**e for e in range(1, 2 * max_ops + 1)]))]
 
         for n in range(1, max_ops + 1):  # number of operators
             D.append(UnaryBinaryExpressionGen._next_row_of_D(num_leaves, max_ops, n, D[-1], p1, p2))
@@ -117,7 +124,7 @@ class UnaryBinaryExpressionGen:
     ) -> T.Tuple[int, int]:
         """
         Sample the position of the next node (unary-binary case).
-        Sample a position in {0, ..., `nb_empty` - 1}, along with an arity.
+        Sample a position in ``{0, ..., `nb_empty` - 1}``, along with an arity.
         """
         assert nb_empty > 0
         assert nb_ops > 0
@@ -125,15 +132,17 @@ class UnaryBinaryExpressionGen:
 
         probs: T.List[float] = []
         for i in range(nb_empty):
-            probs.append((num_leaves ** i) * p1 * self.D[nb_empty - i][nb_ops - 1])
+            probs.append((num_leaves**i) * p1 * self.D[nb_empty - i][nb_ops - 1])
         for i in range(nb_empty):
-            probs.append((num_leaves ** i) * p2 * self.D[nb_empty - i + 1][nb_ops - 1])
+            probs.append((num_leaves**i) * p2 * self.D[nb_empty - i + 1][nb_ops - 1])
 
-        np_probs = np.array([p / self.D[nb_empty][nb_ops] for p in probs], dtype=np.float64)
+        np_probs: npt.NDArray[np.float64] = np.array(
+            [p / self.D[nb_empty][nb_ops] for p in probs], dtype=np.float64
+        )
 
         e = np.random.choice(2 * nb_empty, p=np_probs)
         arity = 1 if e < nb_empty else 2
-        e = e % nb_empty
+        e %= nb_empty
 
         return e, arity
 
@@ -157,9 +166,9 @@ class UnaryBinaryExpressionGen:
 
             # The annotations in numpy are wrong, and don't include the Sequence[Any] overload
             if arity == 1:
-                op = np.random.choice(self.unary_ops, p=self.unary_ops_probs)  # type: ignore
+                op = np.random.choice(self.unary_ops, p=self.unary_ops_probs)  # type: ignore[arg-type]
             else:
-                op = np.random.choice(self.binary_ops, p=self.binary_ops_probs)  # type: ignore
+                op = np.random.choice(self.binary_ops, p=self.binary_ops_probs)  # type: ignore[arg-type]
 
             e += arity - 1 - k  # created empty nodes - skipped future leaves
             t_leaves += arity - 1  # update number of total leaves
@@ -175,7 +184,7 @@ class UnaryBinaryExpressionGen:
 
         # insert leaves into tree
         leaves = [np.random.choice(self.leaves) for _ in range(t_leaves)]
-        for i in range(len(stack)):  # pylint: disable=consider-using-enumerate
+        for i in range(len(stack)):
             if stack[i] is None:
                 stack[i] = leaves.pop()
 
@@ -189,7 +198,7 @@ class UnaryBinaryExpressionGen:
         """
 
         def _seq_to_expr(
-            seq: T.Sequence[T.Union[str, sf.Scalar]]
+            seq: T.Sequence[T.Union[str, sf.Scalar]],
         ) -> T.Tuple[sf.Scalar, T.Sequence[T.Union[str, sf.Scalar]]]:
             assert len(seq) > 0
             t = seq[0]
@@ -204,8 +213,7 @@ class UnaryBinaryExpressionGen:
             elif t in self.leaves:
                 return T.cast(sf.Scalar, t), seq[1:]
             else:
-                assert f"Unknown: {t}"
-                return 0, []  # Just for mypy..
+                assert False, f"Unknown: {t}"
 
         return _seq_to_expr(seq)[0]
 
@@ -216,10 +224,10 @@ class UnaryBinaryExpressionGen:
         seq = self.build_tree_sequence(num_ops_target=num_ops_target)
         return self.seq_to_expr(seq)
 
-    def build_expr_vec(self, num_ops_target: int, num_exprs: int = None) -> sf.M:
+    def build_expr_vec(self, num_ops_target: int, num_exprs: T.Optional[int] = None) -> sf.M:
         """
-        Return a vector of expressions with the total given op target. If no num_exprs
-        is provided, uses an approximate square root of the num_ops_target.
+        Return a vector of expressions with the total given op target. If no ``num_exprs``
+        is provided, uses an approximate square root of the ``num_ops_target``.
         """
         # Empirical fudge factor for simplifications
         num_ops_target = int(1.1 * num_ops_target)

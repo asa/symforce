@@ -3,12 +3,15 @@
  * This source code is under the Apache 2.0 license found in the LICENSE file.
  * ---------------------------------------------------------------------------- */
 
+#pragma once
+
 #include <stdexcept>
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
 #include "./assert.h"
+#include "./values.h"
 
 /**
  * Template method implementations for Values.
@@ -26,17 +29,32 @@ T Values<Scalar>::At(const index_entry_t& entry) const {
   const type_t type = StorageOps<T>::TypeEnum();
   if (entry.type != type) {
     throw std::runtime_error(
-        fmt::format("Mismatched types; index entry is type {}, T is {}", entry.type, type));
+        fmt::format("Mismatched types; index entry for key {} is type {}, T is {}", entry.key,
+                    entry.type, type));
   }
 
-  // Construct the object
-#if 1
-  return sym::StorageOps<T>::FromStorage(data_.data() + entry.offset);
+  // By default, we allow types that have alignment requirements larger than sizeof(Scalar),
+  // and extract these using FromStorage.  But, for SymForce-native types, this should only be the
+  // case for certain aligned Eigen types.  In SymForce CI builds, we set this flag to check this.
+#if SYM_VALUES_DISALLOW_FROM_STORAGE_NON_EIGEN_TYPES
+  constexpr bool use_from_storage = kIsEigenType<T> && alignof(T) > sizeof(Scalar);
 #else
-  // NOTE(hayk): It could be more efficient to reinterpret_cast here, and we could provide
-  // mutable references if desired. But also technically undefined?
-  return *reinterpret_cast<const T*>(data_.data() + entry.offset);
+  constexpr bool use_from_storage = alignof(T) > sizeof(Scalar);
 #endif
+
+  // Construct the object
+  if constexpr (use_from_storage) {
+    return sym::StorageOps<T>::FromStorage(data_.data() + entry.offset);
+  } else {
+    // NOTE(aaron): In order to reinterpret_cast the result, we need 1) its size to fit into the
+    // amount of memory it's given in the data_ array, and 2) its alignment to be less than or equal
+    // to the alignment of the Scalar type (which will be its alignment in the data_ array).
+    // If you have a type that meets the alignment requirement, but the size requirement, you should
+    // fix its StorageDim, which is why use_from_storage only considers the alignment.
+    static_assert(sizeof(T) <= sym::StorageOps<T>::StorageDim() * sizeof(Scalar));
+    static_assert(alignof(T) <= sizeof(Scalar));
+    return *reinterpret_cast<const T*>(data_.data() + entry.offset);
+  }
 }
 
 template <typename Scalar>
@@ -84,6 +102,28 @@ std::enable_if_t<kIsEigenType<Derived>> Values<Scalar>::Set(const index_entry_t&
 // Private Methods
 // ----------------------------------------------------------------------------
 
+namespace internal {
+template <typename T, typename = void>
+struct MaybeTangentDim {
+  static constexpr int32_t value = -1;
+};
+
+// Pre-C++17 void_t implementation
+// See https://en.cppreference.com/w/cpp/types/void_t
+template <typename... Ts>
+struct make_void {
+  typedef void type;
+};
+
+template <typename... Ts>
+using void_t = typename make_void<Ts...>::type;
+
+template <typename T>
+struct MaybeTangentDim<T, void_t<decltype(LieGroupOps<T>::TangentDim())>> {
+  static constexpr int32_t value = LieGroupOps<T>::TangentDim();
+};
+}  // namespace internal
+
 template <typename Scalar>
 template <typename T>
 bool Values<Scalar>::SetInternal(const Key& key, const T& value) {
@@ -105,7 +145,7 @@ bool Values<Scalar>::SetInternal(const Key& key, const T& value) {
     entry.type = type;
     entry.offset = static_cast<int32_t>(data_.size());
     entry.storage_dim = sym::StorageOps<T>::StorageDim();
-    entry.tangent_dim = sym::LieGroupOps<T>::TangentDim();
+    entry.tangent_dim = internal::MaybeTangentDim<T>::value;
 
     // Extend end of data
     data_.insert(data_.end(), entry.storage_dim, 0);
@@ -130,19 +170,5 @@ void Values<Scalar>::SetInternal(const index_entry_t& entry, const T& value) {
   SYM_ASSERT((entry.offset + entry.storage_dim <= static_cast<int>(data_.size())));
   StorageOps<T>::ToStorage(value, data_.data() + entry.offset);
 }
-
-// ----------------------------------------------------------------------------
-// LCM type alias
-// ----------------------------------------------------------------------------
-
-template <>
-struct ValuesLcmTypeHelper<double> {
-  using Type = values_t;
-};
-
-template <>
-struct ValuesLcmTypeHelper<float> {
-  using Type = valuesf_t;
-};
 
 }  // namespace sym

@@ -9,7 +9,7 @@
 
 include(FetchContent)
 
-find_package(pybind11 2.9.2 QUIET)
+find_package(pybind11 2.13.6 QUIET)
 if (NOT pybind11_FOUND)
   message(STATUS "pybind11 not found, adding with FetchContent")
   # NOTE(brad): Set PYTHON_EXECUTABLE to ensure pybind11 uses the same
@@ -17,8 +17,8 @@ if (NOT pybind11_FOUND)
   set(PYTHON_EXECUTABLE ${SYMFORCE_PYTHON})
   FetchContent_Declare(
     pybind11
-    URL https://github.com/pybind/pybind11/archive/v2.9.2.zip
-    URL_HASH SHA256=d1646e6f70d8a3acb2ddd85ce1ed543b5dd579c68b8fb8e9638282af20edead8
+    URL https://github.com/pybind/pybind11/archive/v2.13.6.zip
+    URL_HASH SHA256=d0a116e91f64a4a2d8fb7590c34242df92258a61ec644b79127951e821b47be6
   )
   FetchContent_MakeAvailable(pybind11)
 else()
@@ -41,6 +41,7 @@ pybind11_add_module(
   cc_logger.cc
   cc_optimization_stats.cc
   cc_optimizer.cc
+  cc_slam.cc
   cc_sym.cc
   cc_values.cc
   sym_type_casters.cc
@@ -59,6 +60,7 @@ target_link_libraries(
   PRIVATE
   symforce_opt
   symforce_gen
+  symforce_slam
 )
 
 # TODO(aaron): Should there be an install action here?  This is currently installed by setup.py if

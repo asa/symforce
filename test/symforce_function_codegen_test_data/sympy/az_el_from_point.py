@@ -4,7 +4,7 @@
 # Do NOT modify by hand.
 # -----------------------------------------------------------------------------
 
-# pylint: disable=too-many-locals,too-many-lines,too-many-statements,unused-argument,unused-import
+# ruff: noqa: F401, PLR0912, PLR0913, PLR0914, PLR0915, PLR0917, RUF100
 
 import math
 import typing as T
@@ -29,7 +29,7 @@ def az_el_from_point(nav_T_cam, nav_t_point, epsilon):
         sf.Matrix: (azimuth, elevation)
     """
 
-    # Total ops: 91
+    # Total ops: 89
 
     # Input arrays
     _nav_T_cam = nav_T_cam.data
@@ -98,10 +98,10 @@ def az_el_from_point(nav_T_cam, nav_t_point, epsilon):
         - _tmp14
         + _tmp16 * nav_t_point[0, 0]
         - _tmp17
-        + epsilon * ((0.0 if _tmp18 == 0 else math.copysign(1, _tmp18)) + 0.5),
+        + math.copysign(epsilon, _tmp18),
     )
     _res[1] = (
-        -math.acos(_tmp22 / math.sqrt(_tmp18 ** 2 + _tmp22 ** 2 + _tmp9 ** 2 + epsilon))
+        -math.acos(_tmp22 / math.sqrt(_tmp18**2 + _tmp22**2 + _tmp9**2 + epsilon))
         + (1.0 / 2.0) * math.pi
     )
     return _res

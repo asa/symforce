@@ -30,20 +30,21 @@ class Pose2(LieGroup):
     manifold operations (e.g. retract and local_coordinates) operate on the product manifold
     SO(2) x R2.  This means that:
 
-      - retract(a, vec) != compose(a, from_tangent(vec))
+    - retract(a, vec) != compose(a, from_tangent(vec))
 
-      - local_coordinates(a, b) != to_tangent(between(a, b))
+    - local_coordinates(a, b) != to_tangent(between(a, b))
 
-      - There is no hat operator, because from_tangent/to_tangent is not the matrix exp/log
+    - There is no hat operator, because from_tangent/to_tangent is not the matrix exp/log
 
-    If you need a type that has these properties in symbolic expressions, you should use Pose2_SE2.
-    There is no runtime equivalent of Pose2_SE2, see the docstring on that class for more
-    information.
+    If you need a type that has these properties in symbolic expressions, you should use
+    :class:`symforce.geo.unsupported.pose2_se2.Pose2_SE2`. There is no runtime equivalent of
+    :class:`Pose2_SE2 <symforce.geo.unsupported.pose2_se2.Pose2_SE2>`, see the docstring on that
+    class for more information.
     """
 
     Pose2T = T.TypeVar("Pose2T", bound="Pose2")
 
-    def __init__(self, R: Rot2 = None, t: Vector2 = None) -> None:
+    def __init__(self, R: T.Optional[Rot2] = None, t: T.Optional[Vector2] = None) -> None:
         """
         Construct from elements in SO2 and R2.
         """
@@ -59,7 +60,7 @@ class Pose2(LieGroup):
         """
         Accessor for the rotation component
 
-        Does not make a copy.  Also accessible as `self.R`
+        Does not make a copy.  Also accessible as ``self.R``
         """
         return self.R
 
@@ -67,7 +68,7 @@ class Pose2(LieGroup):
         """
         Accessor for the position component
 
-        Does not make a copy.  Also accessible as `self.t`
+        Does not make a copy.  Also accessible as ``self.t``
         """
         return self.t
 
@@ -95,6 +96,10 @@ class Pose2(LieGroup):
             R=Rot2.from_storage(vec[0 : Rot2.storage_dim()]),
             t=Vector2(*vec[Rot2.storage_dim() : Rot2.storage_dim() + 2]),
         )
+
+    @classmethod
+    def symbolic(cls: T.Type[Pose2T], name: str, **kwargs: T.Any) -> Pose2T:
+        return cls(R=Rot2.symbolic(f"{name}.R"), t=Vector2.symbolic(f"{name}.t"))
 
     # -------------------------------------------------------------------------
     # Group concept - see symforce.ops.group_ops
@@ -132,21 +137,21 @@ class Pose2(LieGroup):
         theta = self.R.to_tangent(epsilon=epsilon)[0]
         return [theta, self.t[0], self.t[1]]
 
-    def storage_D_tangent(self) -> Matrix:
+    def storage_D_tangent(self, epsilon: sf.Scalar = sf.epsilon()) -> Matrix:
         """
-        Note: generated from symforce/notebooks/storage_D_tangent.ipynb
+        Note: generated from ``symforce/notebooks/storage_D_tangent.ipynb``
         """
-        storage_D_tangent_R = self.R.storage_D_tangent()
+        storage_D_tangent_R = self.R.storage_D_tangent(epsilon)
         storage_D_tangent_t = Matrix22.eye()
         return Matrix.block_matrix(
             [[storage_D_tangent_R, Matrix.zeros(2, 2)], [Matrix.zeros(2, 1), storage_D_tangent_t]]
         )
 
-    def tangent_D_storage(self) -> Matrix:
+    def tangent_D_storage(self, epsilon: sf.Scalar = sf.epsilon()) -> Matrix:
         """
-        Note: generated from symforce/notebooks/tangent_D_storage.ipynb
+        Note: generated from ``symforce/notebooks/tangent_D_storage.ipynb``
         """
-        tangent_D_storage_R = self.R.tangent_D_storage()
+        tangent_D_storage_R = self.R.tangent_D_storage(epsilon)
         tangent_D_storage_t = Matrix22.eye()
         return Matrix.block_matrix(
             [[tangent_D_storage_R, Matrix.zeros(1, 2)], [Matrix.zeros(2, 2), tangent_D_storage_t]]
@@ -161,10 +166,10 @@ class Pose2(LieGroup):
         Applies a tangent space perturbation vec to self. Often used in optimization
         to update nonlinear values from an update step in the tangent space.
 
-        Conceptually represents "self + vec" if self is a vector.
+        Conceptually represents ``self + vec`` if self is a vector.
 
         Implementation retracts the R and t components separately, which is different from
-        `compose(self, from_tangent(vec))`.  See the class docstring for more information.
+        ``compose(self, from_tangent(vec))``.  See the class docstring for more information.
         """
         return Pose2(
             R=self.R.retract(vec[:1], epsilon=epsilon),
@@ -178,10 +183,10 @@ class Pose2(LieGroup):
         Computes a tangent space perturbation around self to produce b. Often used in optimization
         to minimize the distance between two group elements.
 
-        Tangent space perturbation that conceptually represents "b - self" if self is a vector.
+        Tangent space perturbation that conceptually represents ``b - self`` if self is a vector.
 
         Implementation takes local_coordinates of the R and t components separately, which is
-        different from `to_tangent(between(self, b))`.  See the class docstring for more
+        different from ``to_tangent(between(self, b))``.  See the class docstring for more
         information.
         """
         return self.R.local_coordinates(b.R, epsilon=epsilon) + ops.LieGroupOps.local_coordinates(
@@ -203,12 +208,6 @@ class Pose2(LieGroup):
     def __mul__(self, right: T.Union[Pose2, Vector2]) -> T.Union[Pose2, Vector2]:
         """
         Left-multiply with a compatible quantity.
-
-        Args:
-            right: (Pose2 | R2)
-
-        Returns:
-            (Pose2 | R2)
         """
         if isinstance(right, Vector2):
             assert right.shape == (2, 1), right.shape
@@ -216,7 +215,7 @@ class Pose2(LieGroup):
         elif isinstance(right, self.__class__):
             return self.compose(right)
         else:
-            raise NotImplementedError(f'Unsupported type: "{right}"')
+            raise NotImplementedError(f'Unsupported type: "{type(right)}"')
 
     def to_homogenous_matrix(self) -> Matrix:
         """

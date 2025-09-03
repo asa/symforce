@@ -6,30 +6,38 @@
 """
 Helpers for interactive use in a Jupyter notebook with an IPython kernel.
 """
-import warnings
 
 import IPython
-import matplotlib
-import pygments
-
-# NOTE(aaron): This is currently nice-to-have, otherwise every time we display something LaTeX we
-# get this warning.  It's fixed in IPython master (https://github.com/ipython/ipython/pull/12889),
-# so once that fix is in a release this can be removed
-warnings.filterwarnings("ignore", category=matplotlib.MatplotlibDeprecationWarning)
-
 import sympy as sympy_py
 
 sympy_py.init_printing()
 
 import symforce
 import symforce.symbolic as sf
+from symforce import ops
 from symforce import typing as T
+
+if symforce.get_symbolic_api() == "symengine":
+    sf.sympy.init_printing()
+
+
+def set_notebook_defaults() -> None:
+    """
+    Change SymForce defaults to be more friendly for Jupyter notebooks.
+
+    - Use LaTeX-friendly symbols (`ops.StorageOps.set_use_latex_friendly_symbols`)
+    """
+    ops.StorageOps.set_use_latex_friendly_symbols(True)
 
 
 def display(*args: T.Any) -> None:
     """
     Display the given expressions in latex, or print if not an expression.
     """
+    # TODO(aaron): This should all be unnecessary on new symengine.  The problem is that our version
+    # of symengine does not define `DenseMatrixBase._repr_latex_`, so we need to convert symengine
+    # matrices to sympy
+
     if symforce.get_symbolic_api() == "sympy":
         IPython.display.display(*args)
         return
@@ -42,29 +50,22 @@ def display(*args: T.Any) -> None:
             converted_args.append(arg)
 
     try:
-        IPython.display.display(sympy_py.S(*converted_args, strict=True))
+        IPython.display.display(
+            *[sympy_py.S(converted_arg, strict=True) for converted_arg in converted_args]
+        )
     except (sympy_py.SympifyError, AttributeError, TypeError):
         IPython.display.display(*args)
 
 
-def display_code(code: str, language: str) -> None:
+def display_code(code: str, language: T.Optional[str] = None) -> None:
     """
     Display code with syntax highlighting.
 
     Args:
-        code (str): Source code
-        language (str): {python, c++, anything supported by pygments}
+        code: Source code
+        language: {python, c++, anything supported by pygments}
     """
-    # types-pygments doesn't have the type for this
-    lexer = T.cast(T.Any, pygments).lexers.get_lexer_by_name(language)
-
-    # And sometimes not this either
-    formatter = T.cast(T.Any, pygments).formatters.HtmlFormatter(  # pylint: disable=no-member
-        noclasses=True
-    )
-    html = pygments.highlight(code, lexer, formatter)
-
-    IPython.display.display(IPython.display.HTML(html))
+    IPython.display.display(IPython.display.Code(code, language=language))
 
 
 def display_code_file(path: T.Openable, language: str) -> None:
@@ -72,8 +73,8 @@ def display_code_file(path: T.Openable, language: str) -> None:
     Display code from a file path with syntax highlighting.
 
     Args:
-        path (T.Openable): Path to source file
-        language (str): {python, c++, anything supported by pygments}
+        path: Path to source file
+        language: {python, c++, anything supported by pygments}
     """
     with open(path) as f:
         code = f.read()
@@ -81,12 +82,17 @@ def display_code_file(path: T.Openable, language: str) -> None:
     display_code(code, language)
 
 
-def print_expression_tree(expr: sf.Expr) -> None:
+def print_expression_tree(expr: sf.Expr, assumptions: bool = False) -> None:
     """
     Print a SymPy expression tree, ignoring node attributes
+
+    Args:
+        expr: The expression to print
+        assumptions: Whether to include assumption information for nodes.  See
+            ``sympy.printing.tree`` for more information.
     """
     from sympy.printing.tree import tree
 
-    unfiltered_tree = tree(expr).split("\n")
+    unfiltered_tree = tree(expr, assumptions=assumptions).split("\n")
     filtered_tree = "\n".join(v for i, v in enumerate(unfiltered_tree) if "+-" in v or i == 0)
     print(filtered_tree)

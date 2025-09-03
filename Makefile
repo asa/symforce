@@ -1,4 +1,8 @@
-# High level build commands for symforce
+# Development utilities for SymForce
+#
+# This plays no part in the SymForce build process.  For instructions on building SymForce (which is
+# done with CMake), see the README.  For documentation of these commands, see
+# https://symforce.org/development.html.
 
 BUILD_DIR=build
 
@@ -19,66 +23,50 @@ FIND_CPP_FILES_TO_FORMAT=find . \
 	-and -not -path "./build/*" \
 	-and -not -path "./.eggs/*" \
 	-and -not -path "./symforce/benchmarks/matrix_multiplication/gen/*" \
-	-regextype posix-extended -regex ".*\.(h|cc|tcc)"
+	-regextype posix-extended -regex ".*\.(h|cc|tcc|cu|cuh)"
 
-# Format using black, isort, and clang-format
-BLACK_CMD=$(PYTHON) -m black . --exclude "third_party/.*|build/.*|\.eggs/.*"
-ISORT_CMD=$(PYTHON) -m isort \
-	--skip-glob="**/third_party" \
-	--extend-skip-glob="**/build" \
-	--extend-skip-glob="**/.eggs" \
-	.
+# Format using ruff and clang-format
+RUFF_FORMAT_CMD=ruff format .
 format:
-	$(BLACK_CMD)
-	$(ISORT_CMD)
+	ruff check . --fixable=I,D --fix-only
+	$(RUFF_FORMAT_CMD)
 	$(FIND_CPP_FILES_TO_FORMAT) | xargs $(CPP_FORMAT) -i
 
-# Check formatting using black and clang-format - print diff, do not modify files
+# Check formatting using ruff and clang-format - print diff, do not modify files
+# NOTE(aaron): This doesn't check docstring rules with ruff, I'm not sure how to filter to docstring
+# rules but keep the exclusions from our ruff config
 check_format:
-	$(BLACK_CMD) --check --diff
-	$(ISORT_CMD) --check --diff
+	ruff check . --select=I --diff
+	$(RUFF_FORMAT_CMD) --check --diff
 	$(FIND_CPP_FILES_TO_FORMAT) | xargs $(CPP_FORMAT) --dry-run -Werror
 
 # Check type hints using mypy
-# NOTE(aaron): mypy does not recurse through directories unless they're packages, so we run `find`.
-# See https://github.com/python/mypy/issues/8548
-# We don't need to run find on `symforce` because we know the whole thing is a package
-MYPY_COMMAND=$(PYTHON) -m mypy --show-error-code
+MYPY_COMMAND=$(PYTHON) -m mypy --show-error-codes --config-file=pyproject.toml
 SYMFORCE_LCMTYPES_DIR ?= build/lcmtypes/python2.7
 check_types:
-	export SYMFORCE_LCMTYPES_DIR=$(SYMFORCE_LCMTYPES_DIR); \
-	$(MYPY_COMMAND) symforce $(shell find . \
-		\( -path ./symforce \
-		-o -path ./third_party \
-		-o -path ./build \
-		-o -path ./.eggs \
-		-o -path ./gen/python/setup.py \
-		-o -path ./test/symforce_function_codegen_test_data \
-		-o -path ./gen/python/build \
-		\) -prune -o -name "*.py" -print) \
-		--exclude "symforce/examples/.*/gen/python2\.7/lcmtypes"
-	$(MYPY_COMMAND) $(shell find test/symforce_function_codegen_test_data/sympy \
-		-path "*/lcmtypes" -prune -false \
-		-o -name "*.py")
-	$(MYPY_COMMAND) $(shell find test/symforce_function_codegen_test_data/symengine \
-		-path "*/lcmtypes" -prune -false \
-		-o -name "*.py")
+	SYMFORCE_LCMTYPES_DIR=$(SYMFORCE_LCMTYPES_DIR) $(MYPY_COMMAND) . \
+		--exclude build \
+		--exclude .eggs \
+		--exclude gen/python/setup.py \
+		--exclude gen/python/build \
+		--exclude test/symforce_function_codegen_test_data/sympy \
+		--exclude test/symforce_function_codegen_test_data/.*/lcmtypes \
+		--exclude "symforce/examples/.*/gen/python2\.7/lcmtypes" \
+		--exclude third_party
 
-# Run pylint on the symforce package, and tests
-# TODO(aaron): Also run on other python code in symforce.  Generated code will require a different
-# config since it is py6 and contains a lot of duplicate code
-pylint:
-	$(PYTHON) -m pylint symforce test/*.py
+# Run ruff check
+ruff_check:
+	ruff check
 
 # Lint check for formatting and type hints
 # This needs pass before any merge.
-lint: check_types check_format pylint
+lint: check_types check_format ruff_check
 
 # Clean all artifacts
 clean: docs_clean coverage_clean
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all reqs format check_format check_types pylint lint clean
+.PHONY: all reqs format check_format check_types ruff_check lint clean
 
 # -----------------------------------------------------------------------------
 # Tests
@@ -143,31 +131,37 @@ docs_clean:
 	rm -rf $(DOCS_DIR) docs/api docs/api-cpp docs/api-gen-cpp docs/api-gen-py \
 		$(BUILD_DIR)/doxygen-cpp $(BUILD_DIR)/doxygen-gen-cpp
 
-docs_apidoc:
+docs_dir:
 	mkdir -p $(BUILD_DIR)
-	sphinx-apidoc --separate --module-first -o docs/api ./symforce ./symforce/sympy.py
+
+docs_py_apidoc: docs_dir
+	sphinx-apidoc --separate --module-first -o docs/api ./symforce
 	sphinx-apidoc --separate --module-first -o docs/api-gen-py ./gen/python
-	doxygen docs/Doxyfile-cpp
-	doxygen docs/Doxyfile-gen-cpp
-	$(PYTHON) -m breathe.apidoc -o docs/api-cpp --project api-cpp $(BUILD_DIR)/doxygen-cpp/xml
-	$(PYTHON) -m breathe.apidoc -o docs/api-gen-cpp --project api-gen-cpp $(BUILD_DIR)/doxygen-gen-cpp/xml
 # The generated symforce.cc_sym.rst file says to generate docs for symforce.cc_sym. However, that file
 # only rexports cc_sym, and consequently the actual contents of cc_sym are not documented. We replace
 # symforce.cc_sym.rst with a copy which is the same except it says to generate docs for cc_sym instead.
 	rm docs/api/symforce.cc_sym.rst
 	cp docs/symforce.cc_sym.rst docs/api/symforce.cc_sym.rst
 
+# This is very slow, and breaks incremental builds.  If iterating on the Python docs, you'll want to
+# remove this from docs_html, and not run docs_clean.  If
+docs_cpp_apidoc: docs_dir
+	doxygen docs/Doxyfile-cpp
+	doxygen docs/Doxyfile-gen-cpp
+	$(PYTHON) -m breathe.apidoc -o docs/api-cpp --project api-cpp $(BUILD_DIR)/doxygen-cpp/xml
+	$(PYTHON) -m breathe.apidoc -o docs/api-gen-cpp --project api-gen-cpp $(BUILD_DIR)/doxygen-gen-cpp/xml
+
 PY_EXTENSION_MODULE_PATH?=$(BUILD_DIR)/pybind
 
-docs_html: docs_apidoc
+docs_html: docs_cpp_apidoc docs_py_apidoc
 	export PYTHONPATH=$(PY_EXTENSION_MODULE_PATH):$(PYTHONPATH); \
 	SYMFORCE_LOGLEVEL=WARNING $(PYTHON) -m sphinx -b html docs $(DOCS_DIR) -j auto
-	mkdir $(DOCS_DIR)/docs
-	ln -s ../_static $(DOCS_DIR)/docs/static
+	mkdir -p $(DOCS_DIR)/docs
+	ln -s -f ../_static $(DOCS_DIR)/docs/static
 
-docs: docs_clean docs_html
+docs: docs_html
 
 docs_open: docs
 	xdg-open $(DOCS_DIR)/index.html
 
-.PHONY: docs_clean docs_apidoc docs_html docs docs_open
+.PHONY: docs_clean docs_dir docs_py_apidoc docs_cpp_apidoc docs_html docs docs_open

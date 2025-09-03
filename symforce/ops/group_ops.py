@@ -17,9 +17,8 @@ class GroupOps(StorageOps):
     that combines any two elements to form a third element and that satisfies four conditions
     called the group axioms - closure, associativity, identity and invertibility.
 
-    Reference:
-
-        https://en.wikipedia.org/wiki/Group_(mathematics)
+    References:
+        * https://en.wikipedia.org/wiki/Group_(mathematics)
     """
 
     @staticmethod
@@ -59,7 +58,7 @@ class GroupOps(StorageOps):
         """
         Returns the element that when composed with a produces b. For vector spaces it is b - a.
 
-        Implementation is simply `compose(inverse(a), b)`.
+        Implementation is simply ``compose(inverse(a), b)``.
 
         Returns:
             Element: c such that a @ c = b

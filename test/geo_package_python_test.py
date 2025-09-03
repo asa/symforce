@@ -29,14 +29,12 @@ class GeoPackageTest(unittest.TestCase):
     since the math is tested comprehensively in symbolic form.
     """
 
-    def setUp(self):
-        # type: () -> None
+    def setUp(self) -> None:
         np.random.seed(42)
         # Store verbosity flag so tests can use
         self.verbose = ("-v" in sys.argv) or ("--verbose" in sys.argv)
 
-    def test_storage_ops_Rot2(self):
-        # type: () -> None
+    def test_storage_ops_Rot2(self) -> None:
         """
         Tests:
             sym.Rot2 StorageOps
@@ -60,8 +58,7 @@ class GeoPackageTest(unittest.TestCase):
         value3 = geo_class.from_storage(vec)
         self.assertNotEqual(value.data, value3.data)
 
-    def test_group_ops_Rot2(self):
-        # type: () -> None
+    def test_group_ops_Rot2(self) -> None:
         """
         Tests:
             sym.Rot2 GroupOps
@@ -83,8 +80,7 @@ class GeoPackageTest(unittest.TestCase):
         self.assertEqual(identity, identity.inverse())
         self.assertEqual(identity, identity.between(identity))
 
-    def test_lie_group_ops_Rot2(self):
-        # type: () -> None
+    def test_lie_group_ops_Rot2(self) -> None:
         """
         Tests:
             sym.Rot2 LieGroupOps
@@ -116,8 +112,7 @@ class GeoPackageTest(unittest.TestCase):
             identity.interpolate(value, 1.0).to_storage(), value.to_storage()
         )
 
-    def test_custom_methods_Rot2(self):
-        # type: () -> None
+    def test_custom_methods_Rot2(self) -> None:
         """
         Tests:
             sym.Rot2 custom methods
@@ -147,8 +142,115 @@ class GeoPackageTest(unittest.TestCase):
         with self.assertRaises(IndexError):
             geo_class([1, 2, 3, 4, 5, 6])
 
-    def test_storage_ops_Pose2(self):
-        # type: () -> None
+    def test_storage_ops_Rot3(self) -> None:
+        """
+        Tests:
+            sym.Rot3 StorageOps
+        """
+
+        geo_class = sym.Rot3
+        logger.debug("*** Testing StorageOps: %s ***", geo_class.__name__)
+
+        value = geo_class()
+        self.assertEqual(len(value.data), geo_class.storage_dim())
+
+        vec = value.to_storage()
+        self.assertTrue(len(vec) > 0)
+        self.assertEqual(len(vec), geo_class.storage_dim())
+        for i, element in enumerate(vec):
+            self.assertEqual(element, value.data[i])
+
+        value2 = geo_class.from_storage(vec)
+        self.assertEqual(value.data, value2.data)
+        vec[0] = 2.1
+        value3 = geo_class.from_storage(vec)
+        self.assertNotEqual(value.data, value3.data)
+
+    def test_group_ops_Rot3(self) -> None:
+        """
+        Tests:
+            sym.Rot3 GroupOps
+        """
+        geo_class = sym.Rot3
+        group_ops = sym.ops.rot3.GroupOps
+        logger.debug("*** Testing GroupOps: %s ***", geo_class.__name__)
+
+        identity = geo_class()
+
+        # TODO(Nathan): Consider reorganizing how the generated python geo package is structured so that
+        # each class doesn't have to use helper functions to call the underlying group_ops functions
+        # Example using the underlying group_ops implementation:
+        self.assertEqual(identity, group_ops.identity())
+
+        # Example using the helper functions:
+        self.assertEqual(identity, geo_class.identity())
+        self.assertEqual(identity, identity.compose(identity))
+        self.assertEqual(identity, identity.inverse())
+        self.assertEqual(identity, identity.between(identity))
+
+    def test_lie_group_ops_Rot3(self) -> None:
+        """
+        Tests:
+            sym.Rot3 LieGroupOps
+        """
+
+        geo_class = sym.Rot3
+        logger.debug("*** Testing LieGroupOps: %s ***", geo_class.__name__)
+
+        tangent_dim = geo_class.tangent_dim()
+        self.assertTrue(tangent_dim > 0)
+        self.assertTrue(tangent_dim <= geo_class.storage_dim())
+
+        perturbation = np.random.rand(tangent_dim)
+        value = geo_class.from_tangent(perturbation)
+        recovered_perturbation = geo_class.to_tangent(value)
+        np.testing.assert_almost_equal(perturbation, recovered_perturbation)
+
+        identity = geo_class.identity()
+        recovered_identity = value.retract(-recovered_perturbation)
+        np.testing.assert_almost_equal(recovered_identity.to_storage(), identity.to_storage())
+
+        perturbation_zero = identity.local_coordinates(recovered_identity)
+        np.testing.assert_almost_equal(perturbation_zero, np.zeros(tangent_dim))
+
+        np.testing.assert_almost_equal(
+            identity.interpolate(value, 0.0).to_storage(), identity.to_storage()
+        )
+        np.testing.assert_almost_equal(
+            identity.interpolate(value, 1.0).to_storage(), value.to_storage()
+        )
+
+    def test_custom_methods_Rot3(self) -> None:
+        """
+        Tests:
+            sym.Rot3 custom methods
+        """
+        geo_class = sym.Rot3
+        logger.debug("*** Testing Custom Methods: %s ***", geo_class.__name__)
+
+        tangent_dim = geo_class.tangent_dim()
+        element = geo_class.from_tangent(np.random.normal(size=tangent_dim))
+
+        vector = np.random.normal(size=(3, 1))
+        matrix = element.to_rotation_matrix()
+        np.testing.assert_almost_equal(np.matmul(matrix, vector), element * vector)
+
+        # Test constructor handles column vectors correctly
+        col_data = np.random.normal(size=(geo_class.storage_dim(), 1))
+        rot = geo_class(col_data)
+        expected_data = col_data.ravel().tolist()
+        self.assertEqual(expected_data, rot.data)
+        for x in rot.data:
+            # NOTE(brad): One failure mode is for x to not be a float but an ndarray.
+            # This isn't caught by the above because [np.array([1.0])] == [1.0]
+            # evaluates to True.
+            self.assertIsInstance(x, float)
+
+        # Test constructor raises a IndexError if input is too large
+        with self.assertRaises(IndexError):
+            geo_class([1, 2, 3, 4, 5, 6])
+
+    def test_storage_ops_Pose2(self) -> None:
         """
         Tests:
             sym.Pose2 StorageOps
@@ -172,8 +274,7 @@ class GeoPackageTest(unittest.TestCase):
         value3 = geo_class.from_storage(vec)
         self.assertNotEqual(value.data, value3.data)
 
-    def test_group_ops_Pose2(self):
-        # type: () -> None
+    def test_group_ops_Pose2(self) -> None:
         """
         Tests:
             sym.Pose2 GroupOps
@@ -195,8 +296,7 @@ class GeoPackageTest(unittest.TestCase):
         self.assertEqual(identity, identity.inverse())
         self.assertEqual(identity, identity.between(identity))
 
-    def test_lie_group_ops_Pose2(self):
-        # type: () -> None
+    def test_lie_group_ops_Pose2(self) -> None:
         """
         Tests:
             sym.Pose2 LieGroupOps
@@ -228,8 +328,7 @@ class GeoPackageTest(unittest.TestCase):
             identity.interpolate(value, 1.0).to_storage(), value.to_storage()
         )
 
-    def test_custom_methods_Pose2(self):
-        # type: () -> None
+    def test_custom_methods_Pose2(self) -> None:
         """
         Tests:
             sym.Pose2 custom methods
@@ -274,120 +373,7 @@ class GeoPackageTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             geo_class(R=4)  # type: ignore[arg-type]
 
-    def test_storage_ops_Rot3(self):
-        # type: () -> None
-        """
-        Tests:
-            sym.Rot3 StorageOps
-        """
-
-        geo_class = sym.Rot3
-        logger.debug("*** Testing StorageOps: %s ***", geo_class.__name__)
-
-        value = geo_class()
-        self.assertEqual(len(value.data), geo_class.storage_dim())
-
-        vec = value.to_storage()
-        self.assertTrue(len(vec) > 0)
-        self.assertEqual(len(vec), geo_class.storage_dim())
-        for i, element in enumerate(vec):
-            self.assertEqual(element, value.data[i])
-
-        value2 = geo_class.from_storage(vec)
-        self.assertEqual(value.data, value2.data)
-        vec[0] = 2.1
-        value3 = geo_class.from_storage(vec)
-        self.assertNotEqual(value.data, value3.data)
-
-    def test_group_ops_Rot3(self):
-        # type: () -> None
-        """
-        Tests:
-            sym.Rot3 GroupOps
-        """
-        geo_class = sym.Rot3
-        group_ops = sym.ops.rot3.GroupOps
-        logger.debug("*** Testing GroupOps: %s ***", geo_class.__name__)
-
-        identity = geo_class()
-
-        # TODO(Nathan): Consider reorganizing how the generated python geo package is structured so that
-        # each class doesn't have to use helper functions to call the underlying group_ops functions
-        # Example using the underlying group_ops implementation:
-        self.assertEqual(identity, group_ops.identity())
-
-        # Example using the helper functions:
-        self.assertEqual(identity, geo_class.identity())
-        self.assertEqual(identity, identity.compose(identity))
-        self.assertEqual(identity, identity.inverse())
-        self.assertEqual(identity, identity.between(identity))
-
-    def test_lie_group_ops_Rot3(self):
-        # type: () -> None
-        """
-        Tests:
-            sym.Rot3 LieGroupOps
-        """
-
-        geo_class = sym.Rot3
-        logger.debug("*** Testing LieGroupOps: %s ***", geo_class.__name__)
-
-        tangent_dim = geo_class.tangent_dim()
-        self.assertTrue(tangent_dim > 0)
-        self.assertTrue(tangent_dim <= geo_class.storage_dim())
-
-        perturbation = np.random.rand(tangent_dim)
-        value = geo_class.from_tangent(perturbation)
-        recovered_perturbation = geo_class.to_tangent(value)
-        np.testing.assert_almost_equal(perturbation, recovered_perturbation)
-
-        identity = geo_class.identity()
-        recovered_identity = value.retract(-recovered_perturbation)
-        np.testing.assert_almost_equal(recovered_identity.to_storage(), identity.to_storage())
-
-        perturbation_zero = identity.local_coordinates(recovered_identity)
-        np.testing.assert_almost_equal(perturbation_zero, np.zeros(tangent_dim))
-
-        np.testing.assert_almost_equal(
-            identity.interpolate(value, 0.0).to_storage(), identity.to_storage()
-        )
-        np.testing.assert_almost_equal(
-            identity.interpolate(value, 1.0).to_storage(), value.to_storage()
-        )
-
-    def test_custom_methods_Rot3(self):
-        # type: () -> None
-        """
-        Tests:
-            sym.Rot3 custom methods
-        """
-        geo_class = sym.Rot3
-        logger.debug("*** Testing Custom Methods: %s ***", geo_class.__name__)
-
-        tangent_dim = geo_class.tangent_dim()
-        element = geo_class.from_tangent(np.random.normal(size=tangent_dim))
-
-        vector = np.random.normal(size=(3, 1))
-        matrix = element.to_rotation_matrix()
-        np.testing.assert_almost_equal(np.matmul(matrix, vector), element * vector)
-
-        # Test constructor handles column vectors correctly
-        col_data = np.random.normal(size=(geo_class.storage_dim(), 1))
-        rot = geo_class(col_data)
-        expected_data = col_data.ravel().tolist()
-        self.assertEqual(expected_data, rot.data)
-        for x in rot.data:
-            # NOTE(brad): One failure mode is for x to not be a float but an ndarray.
-            # This isn't caught by the above because [np.array([1.0])] == [1.0]
-            # evaluates to True.
-            self.assertIsInstance(x, float)
-
-        # Test constructor raises a IndexError if input is too large
-        with self.assertRaises(IndexError):
-            geo_class([1, 2, 3, 4, 5, 6])
-
-    def test_storage_ops_Pose3(self):
-        # type: () -> None
+    def test_storage_ops_Pose3(self) -> None:
         """
         Tests:
             sym.Pose3 StorageOps
@@ -411,8 +397,7 @@ class GeoPackageTest(unittest.TestCase):
         value3 = geo_class.from_storage(vec)
         self.assertNotEqual(value.data, value3.data)
 
-    def test_group_ops_Pose3(self):
-        # type: () -> None
+    def test_group_ops_Pose3(self) -> None:
         """
         Tests:
             sym.Pose3 GroupOps
@@ -434,8 +419,7 @@ class GeoPackageTest(unittest.TestCase):
         self.assertEqual(identity, identity.inverse())
         self.assertEqual(identity, identity.between(identity))
 
-    def test_lie_group_ops_Pose3(self):
-        # type: () -> None
+    def test_lie_group_ops_Pose3(self) -> None:
         """
         Tests:
             sym.Pose3 LieGroupOps
@@ -467,8 +451,7 @@ class GeoPackageTest(unittest.TestCase):
             identity.interpolate(value, 1.0).to_storage(), value.to_storage()
         )
 
-    def test_custom_methods_Pose3(self):
-        # type: () -> None
+    def test_custom_methods_Pose3(self) -> None:
         """
         Tests:
             sym.Pose3 custom methods
@@ -513,8 +496,7 @@ class GeoPackageTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             geo_class(R=4)  # type: ignore[arg-type]
 
-    def test_storage_ops_Unit3(self):
-        # type: () -> None
+    def test_storage_ops_Unit3(self) -> None:
         """
         Tests:
             sym.Unit3 StorageOps
@@ -523,7 +505,7 @@ class GeoPackageTest(unittest.TestCase):
         geo_class = sym.Unit3
         logger.debug("*** Testing StorageOps: %s ***", geo_class.__name__)
 
-        value = geo_class()
+        value = geo_class(np.array([1.0, 0.0, 0.0]))
         self.assertEqual(len(value.data), geo_class.storage_dim())
 
         vec = value.to_storage()
@@ -538,31 +520,7 @@ class GeoPackageTest(unittest.TestCase):
         value3 = geo_class.from_storage(vec)
         self.assertNotEqual(value.data, value3.data)
 
-    def test_group_ops_Unit3(self):
-        # type: () -> None
-        """
-        Tests:
-            sym.Unit3 GroupOps
-        """
-        geo_class = sym.Unit3
-        group_ops = sym.ops.unit3.GroupOps
-        logger.debug("*** Testing GroupOps: %s ***", geo_class.__name__)
-
-        identity = geo_class()
-
-        # TODO(Nathan): Consider reorganizing how the generated python geo package is structured so that
-        # each class doesn't have to use helper functions to call the underlying group_ops functions
-        # Example using the underlying group_ops implementation:
-        self.assertEqual(identity, group_ops.identity())
-
-        # Example using the helper functions:
-        self.assertEqual(identity, geo_class.identity())
-        self.assertEqual(identity, identity.compose(identity))
-        self.assertEqual(identity, identity.inverse())
-        self.assertEqual(identity, identity.between(identity))
-
-    def test_lie_group_ops_Unit3(self):
-        # type: () -> None
+    def test_lie_group_ops_Unit3(self) -> None:
         """
         Tests:
             sym.Unit3 LieGroupOps
@@ -572,27 +530,45 @@ class GeoPackageTest(unittest.TestCase):
         logger.debug("*** Testing LieGroupOps: %s ***", geo_class.__name__)
 
         tangent_dim = geo_class.tangent_dim()
+        storage_dim = geo_class.storage_dim()
         self.assertTrue(tangent_dim > 0)
-        self.assertTrue(tangent_dim <= geo_class.storage_dim())
+        self.assertTrue(tangent_dim <= storage_dim)
 
+        # Test around unit X singularity
         perturbation = np.random.rand(tangent_dim)
-        value = geo_class.from_tangent(perturbation)
-        recovered_perturbation = geo_class.to_tangent(value)
+        singularity = geo_class.from_unit_vector(np.array([1.0, 0.0, 0.0]))
+        b = singularity.retract(perturbation)
+        recovered_perturbation = singularity.local_coordinates(b)
         np.testing.assert_almost_equal(perturbation, recovered_perturbation)
 
-        identity = geo_class.identity()
-        recovered_identity = value.retract(-recovered_perturbation)
-        np.testing.assert_almost_equal(recovered_identity.to_storage(), identity.to_storage())
+        reverse_perturbation = b.local_coordinates(singularity)
+        recovered_singularity = b.retract(reverse_perturbation)
+        np.testing.assert_almost_equal(recovered_singularity.to_storage(), singularity.to_storage())
 
-        perturbation_zero = identity.local_coordinates(recovered_identity)
+        perturbation_zero = singularity.local_coordinates(recovered_singularity)
         np.testing.assert_almost_equal(perturbation_zero, np.zeros(tangent_dim))
 
         np.testing.assert_almost_equal(
-            identity.interpolate(value, 0.0).to_storage(), identity.to_storage()
+            singularity.interpolate(b, 0.0).to_storage(), singularity.to_storage()
         )
-        np.testing.assert_almost_equal(
-            identity.interpolate(value, 1.0).to_storage(), value.to_storage()
-        )
+        np.testing.assert_almost_equal(singularity.interpolate(b, 1.0).to_storage(), b.to_storage())
+
+        # Test around random vector (because we can't test around identity)
+        perturbation = np.random.rand(tangent_dim)
+        a = geo_class.random()
+        b = a.retract(perturbation, epsilon=sym.epsilon)
+        recovered_perturbation = a.local_coordinates(b, epsilon=sym.epsilon)
+        np.testing.assert_almost_equal(perturbation, recovered_perturbation)
+
+        reverse_perturbation = b.local_coordinates(a, epsilon=sym.epsilon)
+        recovered_a = b.retract(reverse_perturbation, epsilon=sym.epsilon)
+        np.testing.assert_almost_equal(recovered_a.to_storage(), a.to_storage())
+
+        perturbation_zero = a.local_coordinates(recovered_a, epsilon=sym.epsilon)
+        np.testing.assert_almost_equal(perturbation_zero, np.zeros(tangent_dim))
+
+        np.testing.assert_almost_equal(a.interpolate(b, 0.0).to_storage(), a.to_storage())
+        np.testing.assert_almost_equal(a.interpolate(b, 1.0).to_storage(), b.to_storage())
 
 
 if __name__ == "__main__":

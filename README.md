@@ -6,16 +6,13 @@
 ![SymForce](docs/static/images/symforce_banner_dark.png#gh-dark-mode-only)
 <!-- /DARK_MODE_ONLY -->
 
-| 📣 We are open for internships!  If you are interested in contributing to SymForce, visit the program page [here](https://github.com/symforce-org/symforce/discussions/242) to learn more.  |
-|-----------------------------------------|
-
 <p align="center">
 <a href="https://github.com/symforce-org/symforce/actions/workflows/ci.yml?query=branch%3Amain"><img alt="CI status" src="https://github.com/symforce-org/symforce/actions/workflows/ci.yml/badge.svg" /></a>
 <a href="https://symforce.org"><img alt="Documentation" src="https://img.shields.io/badge/api-docs-blue" /></a>
 <a href="https://github.com/symforce-org/symforce"><img alt="Source Code" src="https://img.shields.io/badge/source-code-blue" /></a>
 <a href="https://github.com/symforce-org/symforce/issues"><img alt="Issues" src="https://img.shields.io/badge/issue-tracker-blue" /></a>
-<img alt="Python 3.8 | 3.9 | 3.10" src="https://img.shields.io/pypi/pyversions/symforce" />
-<img alt="C++14" src="https://img.shields.io/badge/c++-14-blue" />
+<img alt="Python 3.8 | 3.9 | 3.10 | 3.11 | 3.12" src="https://img.shields.io/pypi/pyversions/symforce" />
+<img alt="C++17" src="https://img.shields.io/badge/c++-17-blue" />
 <a href="https://pypi.org/project/symforce/"><img alt="PyPI" src="https://img.shields.io/pypi/v/symforce" /></a>
 <a href="https://github.com/symforce-org/symforce/tree/main/LICENSE"><img alt="Apache License" src="https://img.shields.io/pypi/l/symforce" /></a>
 </p>
@@ -40,7 +37,7 @@ SymForce is developed and maintained by [Skydio](https://skydio.com/). It is use
 
 <br/>
 
-#### Features:
+#### Features
 
  + Symbolic implementations of geometry and camera types with Lie group operations
  + Code generation of fast native runtime code from symbolic expressions, reducing duplication and minimizing bugs
@@ -118,19 +115,12 @@ frame, we do:
 ```python
 landmark_body = pose.inverse() * landmark
 ```
-<img src="https://render.githubusercontent.com/render/math?math={\begin{bmatrix}  R_{re} L_0 %2B R_{im} L_1 - R_{im} t_1 - R_{re} t_0 \\  -R_{im} L_0 %2B R_{re} L_1 %2B R_{im} t_0 %2B R_{re} t_1\end{bmatrix}}#gh-light-mode-only"
-    width="250px" />
-<!-- DARK_MODE_ONLY -->
-<img src="https://render.githubusercontent.com/render/math?math={\color{white} \begin{bmatrix}  R_{re} L_0 %2B R_{im} L_1 - R_{im} t_1 - R_{re} t_0 \\  -R_{im} L_0 %2B R_{re} L_1 %2B R_{im} t_0 %2B R_{re} t_1\end{bmatrix}}#gh-dark-mode-only"
-    width="250px" />
-<!-- /DARK_MODE_ONLY -->
-
-<!-- $
+$$
 \begin{bmatrix}
-  R_{re} L_0 + R_{im} L_1 - R_{im} t_1 - R_{re} t_0 \\
-  -R_{im} L_0 + R_{re} L_1 + R_{im} t_0 + R_{re} t_1
+    R_{re} L_0 + R_{im} L_1 - R_{im} t_1 - R_{re} t_0 \\
+    -R_{im} L_0 + R_{re} L_1 + R_{im} t_0 + R_{re} t_1
 \end{bmatrix}
-$ -->
+$$
 
 You can see that `sf.Rot2` is represented internally by a complex number (𝑅𝑟𝑒, 𝑅𝑖𝑚) and we can study how it rotates the landmark 𝐿.
 
@@ -139,19 +129,13 @@ For exploration purposes, let's take the jacobian of the body-frame landmark wit
 ```python
 landmark_body.jacobian(pose)
 ```
-<img src="https://render.githubusercontent.com/render/math?math={\begin{bmatrix}-L_0 R_{im} %2B L_1 R_{re} %2B t_0 R_{im} - t_1 R_{re}, %26 -R_{re}, %26 -R_{im} \\ -L_0 R_{re} - L_1 R_{im} %2B t_0 R_{re} %2B t_1 R_{im}, %26  R_{im}, %26 -R_{re}\end{bmatrix}}#gh-light-mode-only"
-    width="350px" />
-<!-- DARK_MODE_ONLY -->
-<img src="https://render.githubusercontent.com/render/math?math={\color{white} \begin{bmatrix}-L_0 R_{im} %2B L_1 R_{re} %2B t_0 R_{im} - t_1 R_{re}, %26 -R_{re}, %26 -R_{im} \\ -L_0 R_{re} - L_1 R_{im} %2B t_0 R_{re} %2B t_1 R_{im}, %26  R_{im}, %26 -R_{re}\end{bmatrix}}#gh-dark-mode-only"
-    width="350px" />
-<!-- /DARK_MODE_ONLY -->
 
-<!-- $
+$$
 \begin{bmatrix}
-  -L_0*R_{im} + L1*R_{re} + t_0*R_{im} - t_1*R_{re}, & -R_{re}, & -R_{im} \\
-  -L_0*R_{re} - L1*R_{im} + t_0*R_{re} + t_1*R_{im}, &  R_{im}, & -R_{re}
+    -L_0 R_{im} + L_1 R_{re} + t_0 R_{im} - t_1 R_{re}, & -R_{re}, & -R_{im} \\
+    -L_0 R_{re} - L_1 R_{im} + t_0 R_{re} + t_1 R_{im}, &  R_{im}, & -R_{re}
 \end{bmatrix}
-$ -->
+$$
 
 Note that even though the orientation is stored as a complex number, the tangent space is a scalar angle and SymForce understands that.
 
@@ -160,30 +144,19 @@ Now compute the relative bearing angle:
 ```python
 sf.atan2(landmark_body[1], landmark_body[0])
 ```
-<img src="https://render.githubusercontent.com/render/math?math={atan_2(-R_{im} L_0 %2B R_{re} L_1 %2B R_{im} t_0 %2B R_{re} t_1, R_{re} L_0 %2B R_{im} L_1 - R_{im} t_1 - R_{re} t_0)}#gh-light-mode-only"
-    width="500px" />
-<!-- DARK_MODE_ONLY -->
-<img src="https://render.githubusercontent.com/render/math?math={\color{white} atan_2(-R_{im} L_0 %2B R_{re} L_1 %2B R_{im} t_0 %2B R_{re} t_1, R_{re} L_0 %2B R_{im} L_1 - R_{im} t_1 - R_{re} t_0)}#gh-dark-mode-only"
-    width="500px" />
-<!-- /DARK_MODE_ONLY -->
 
-<!-- $
-atan_2(-R_{im} L_0 + R_{re} L_1 + R_{im} t_0 + R_{re} t_1, R_{re} L_0  + R_{im} L_1 - R_{im} t_1 - R_{re} t_0)
-$ -->
+$$
+atan_2(-R_{im} L_0 + R_{re} L_1 + R_{im} t_0 + R_{re} t_1, R_{re} L_0 + R_{im} L_1 - R_{im} t_1 - R_{re} t_0)
+$$
 
 One important note is that `atan2` is singular at (0, 0). In SymForce we handle this by placing a symbol ϵ (epsilon) that preserves the value of an expression in the limit of ϵ → 0, but allows evaluating at runtime with a very small nonzero value. Functions with singularities accept an `epsilon` argument:
 
 ```python
 sf.V3.symbolic("x").norm(epsilon=sf.epsilon())
 ```
-<img src="https://render.githubusercontent.com/render/math?math={\sqrt{x_0^2 %2B x_1^2 %2B x_2^2 %2B \epsilon}}#gh-light-mode-only"
-    width="135px" />
-<!-- DARK_MODE_ONLY -->
-<img src="https://render.githubusercontent.com/render/math?math={\color{white} \sqrt{x_0^2 %2B x_1^2 %2B x_2^2 %2B \epsilon}}#gh-dark-mode-only"
-    width="135px" />
-<!-- /DARK_MODE_ONLY -->
-
-<!-- $\sqrt{x_0^2 + x_1^2 + x_2^2 + \epsilon}$ -->
+$$
+\sqrt{x_0^2 + x_1^2 + x_2^2 + \epsilon}
+$$
 
 See the [Epsilon Tutorial](https://symforce.org/tutorials/epsilon_tutorial.html) in the SymForce Docs for more information.
 
@@ -290,6 +263,12 @@ Now run the optimization! This returns an [`Optimizer.Result`](https://symforce.
 result = optimizer.optimize(initial_values)
 ```
 
+We can check that the optimization succeeded, and look at the final error:
+```python
+assert result.status == Optimizer.Status.SUCCESS
+print(result.error())
+```
+
 Let's visualize what the optimizer did. The orange circles represent the fixed landmarks, the blue
 circles represent the robot, and the dotted lines represent the bearing measurements.
 
@@ -331,7 +310,7 @@ As a convenience, the Python `Optimizer` class can accept symbolic types in its 
 
 ## Generate runtime C++ code
 
-Let's look under the hood to understand how that optimization worked. For each factor, SymForce introspects the form of the symbolic function, passes through symbolic inputs to build an output expression, automatically computes tangent-space jacobians of those output expressions wrt the optimized variables, and generates fast runtime code for them.
+Let's look under the hood to understand how that optimization worked. For each factor, SymForce introspects the form of the symbolic function, passes through symbolic inputs to build an output expression, automatically computes tangent-space jacobians of those output expressions w.r.t. the optimized variables, and generates fast runtime code for them.
 
 The [`Codegen`](https://symforce.org/api/symforce.codegen.codegen.html?highlight=codegen#module-symforce.codegen.codegen) class is the central tool for generating runtime code from symbolic expressions. In this case, we pass it the bearing residual function and configure it to generate C++ code:
 ```python
@@ -358,7 +337,7 @@ This C++ code depends only on Eigen and computes the results in a single flat fu
 ```c++
 #pragma once
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 #include <sym/pose2.h>
 
@@ -527,6 +506,7 @@ values.Set('e', sym::kDefaultEpsilond);
 // Optimize!
 const auto stats = optimizer.Optimize(values);
 
+std::cout << "Exit status: " << stats.status << std::endl;
 std::cout << "Optimized values:" << values << std::endl;
 ```
 
@@ -587,7 +567,7 @@ pip install -e .
 
 You should then [verify your installation](#verify-your-installation).
 
-___Note:___ `pip install .` will not install pinned versions of SymForce's dependencies, it'll install any compatible versions.  It also won't install all packages required to run all of the SymForce tests and build all of the targets (e.g. building the docs or running the linters).  If you want all packages required for that, you should `pip install .[dev]` instead (or one of the other groups of extra requirements in our `setup.py`).  If you additionally want pinned versions of our dependencies, which are the exact versions guaranteed by CI to pass all of our tests, you can install them from `pip install -r dev_requirements.txt`.
+___Note:___ `pip install .` will not install pinned versions of SymForce's dependencies, it'll install any compatible versions.  It also won't install all packages required to run all of the SymForce tests and build all of the targets (e.g. building the docs or running the linters).  If you want all packages required for that, you should `pip install .[dev]` instead (or one of the other groups of extra requirements in our `setup.py`).  If you additionally want pinned versions of our dependencies, which are the exact versions guaranteed by CI to pass all of our tests, you can install them from `pip install -r requirements/dev_py3<version>.txt`.
 
 _Note: Editable installs as root with the system python on Ubuntu (and other Debian derivatives) are broken on `setuptools<64.0.0`.  This is a [bug in Debian](https://ffy00.github.io/blog/02-python-debian-and-the-install-locations/), not something in SymForce that we can fix.  If this is your situation, either use a virtual environment, upgrade setuptools to a version `>=64.0.0`, or use a different installation method._
 
@@ -596,10 +576,12 @@ _Note: Editable installs as root with the system python on Ubuntu (and other Deb
 If you'll be modifying the C++ parts of SymForce, you should build with CMake directly instead - this method will not install
 SymForce into your Python environment, so you'll need to add it to your PYTHONPATH separately.
 
-Install python requirements:
+Install dependencies required to build and run SymForce:
 ```bash
-pip install -r dev_requirements.txt
+pip install -r requirements/build_py3<version>.txt
 ```
+
+___Note:___ `requirements/build_py3<version>.txt` contains only packages required to build and run symforce, but not everything recommended to develop symforce, like to run the SymForce tests and linters.  For that, install the full pinned requirements using `pip install -r requirements/dev_py3<version>.txt` for your Python version.
 
 Build SymForce (requires C++14 or later):
 ```bash
@@ -612,7 +594,7 @@ make -j $(nproc)
 You'll then need to add SymForce (along with `gen/python` and `third_party/skymarshal` within symforce and `lcmtypes/python2.7` within the build directory) to your PYTHONPATH in order to use them, for example:
 
 ```bash
-export PYTHONPATH="$PYTHONPATH:/path/to/symforce:/path/to/symforce/build/lcmtypes/python2.7:/path/to/symforce/gen/python:/path/to/symforce/third_party/skymarshal"
+export PYTHONPATH="$PYTHONPATH:/path/to/symforce:/path/to/symforce/build/lcmtypes/python2.7"
 ```
 
 If you want to install SymForce to use its C++ libraries in another CMake project, you can do that with:
@@ -620,9 +602,9 @@ If you want to install SymForce to use its C++ libraries in another CMake projec
 make install
 ```
 
-SymForce does not currently integrate with CMake's `find_package` (see #209), so if you do this you currently need to add its libraries as link dependencies in your CMake project manually.
+SymForce does not currently integrate with CMake's `find_package` (see [#209](https://github.com/symforce-org/symforce/issues/209)), so if you do this you currently need to add its libraries as link dependencies in your CMake project manually.
 
-## Verify your installation:
+## Verify your installation
 ```python
 >>> import symforce
 >>> symforce.get_symbolic_api()
@@ -657,10 +639,9 @@ While SymForce already powers tens of thousands of robots at Skydio, the public 
 
 There are many features we're excited to add to SymForce and would love to see contributed by the community. Most are outlined in the issues, but some major desired contributions are:
 
-- Add more backend languages, such as TypeScript, CUDA, GLSL/HLSL, and PyTorch
-- Easily swap in approximate or architecture-specific implementations of primitive
-functions, such as trig functions
+- Add more backend languages, such as TypeScript and GLSL/HLSL, and improvements to the experimental CUDA and PyTorch backends
 - Support for WebAssembly compilation
 - More Lie group types, in particular Sim(3)
 - Support for constraints in our optimizer
 - Integration with [ISPC](https://ispc.github.io/)
+- Windows and conda packages

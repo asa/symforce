@@ -7,6 +7,7 @@ import symforce
 
 symforce.set_epsilon_to_symbol()
 
+import functools
 import itertools
 
 import symforce.symbolic as sf
@@ -20,7 +21,7 @@ from symforce.test_util import TestCase
 from symforce.test_util.backend_coverage_expressions import backend_test_function
 
 TEST_DATA_DIR = (
-    path_util.symforce_data_root()
+    path_util.symforce_data_root(__file__)
     / "test"
     / "symforce_function_codegen_test_data"
     / symforce.get_symbolic_api()
@@ -104,11 +105,13 @@ class SymforceCudaCodegenTest(TestCase):
         # Generate the symbolic backend test function
         for scalar in scalars:
             Codegen.function(
-                backend_test_function,
+                functools.partial(
+                    backend_test_function,
+                    [sf.sympy.erfc, sf.sympy.loggamma, sf.sympy.erf, sf.sympy.gamma],
+                ),
                 config=CudaConfig(inline=False, scalar_type=scalar),
                 name=f"backend_test_function_{scalar.value}",
             ).generate_function(output_dir, skip_directory_nesting=True)
-
         self.compare_or_update_directory(output_dir, TEST_DATA_DIR)
 
 

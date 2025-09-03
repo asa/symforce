@@ -21,6 +21,8 @@ Currently, the body of of count_ops is the body as found in sympy, modified only
 with those comments, formatting, and material changes to the implementation.
 """
 
+# ruff: noqa: D213, D411, D416
+
 from sympy import Add
 from sympy import Basic
 from sympy import Derivative
@@ -68,7 +70,7 @@ def _coeff_isneg(a: Basic) -> bool:
 
 
 @T.no_type_check
-def count_ops(expr: T.Any, visual: bool = False) -> T.Union[Expr, int]:
+def count_ops(expr: T.Any, visual: bool = False) -> T.Union[Expr, int]:  # noqa: PLR0912, PLR0915
     """
     Return a representation (integer or expression) of the operations in expr.
     Parameters
@@ -129,9 +131,7 @@ def count_ops(expr: T.Any, visual: bool = False) -> T.Union[Expr, int]:
 
     expr = sympify(expr)
 
-    # pylint: disable=too-many-nested-blocks
-    if isinstance(expr, Expr) and not expr.is_Relational:
-
+    if isinstance(expr, Expr) and not expr.is_Relational:  # noqa: PLR1702
         ops = []
         args = [expr]
         NEG = Symbol("NEG")
@@ -199,8 +199,8 @@ def count_ops(expr: T.Any, visual: bool = False) -> T.Union[Expr, int]:
                 o = Symbol(a.func.__name__.upper())
                 # count the args
                 ops.append(o * (len(a.args) - 1))
-            elif a.args and (  # pylint: disable=too-many-boolean-expressions
-                a.is_Pow  # pylint: disable=consider-merging-isinstance
+            elif a.args and (  # noqa: PLR0916
+                a.is_Pow
                 or a.is_Function
                 or isinstance(a, Derivative)
                 or isinstance(a, Integral)
@@ -230,7 +230,7 @@ def count_ops(expr: T.Any, visual: bool = False) -> T.Union[Expr, int]:
         ops.append(o)
     elif not isinstance(expr, Basic):
         ops = []
-    else:  # it's Basic not isinstance(expr, Expr):
+    else:  # it's Basic not isinstance(expr, Expr):  # noqa: PLR5501
         if not isinstance(expr, Basic):
             raise TypeError("Invalid type of expr")
         else:
