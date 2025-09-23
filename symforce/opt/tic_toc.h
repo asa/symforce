@@ -33,8 +33,8 @@
 #endif
 
 #else  // if !defined(SYMFORCE_TIC_TOC_HEADER)
-#include <fmt/format.h>
-#include <fmt/ostream.h>
+#include "fmt/format.h"
+#include "fmt/ostream.h"
 
 #include "./internal/tic_toc.h"
 

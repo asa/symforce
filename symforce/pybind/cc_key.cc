@@ -5,8 +5,8 @@
 
 #include "./cc_key.h"
 
-#include <fmt/format.h>
-#include <fmt/ostream.h>
+#include "fmt/format.h"
+#include "fmt/ostream.h"
 
 #include <symforce/opt/key.h>
 

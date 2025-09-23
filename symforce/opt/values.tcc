@@ -7,8 +7,8 @@
 
 #include <stdexcept>
 
-#include <fmt/format.h>
-#include <fmt/ostream.h>
+#include "fmt/format.h"
+#include "fmt/ostream.h"
 
 #include "./assert.h"
 #include "./values.h"
@@ -30,7 +30,7 @@ T Values<Scalar>::At(const index_entry_t& entry) const {
   if (entry.type != type) {
     throw std::runtime_error(
         fmt::format("Mismatched types; index entry for key {} is type {}, T is {}", entry.key,
-                    entry.type, type));
+                    fmt::streamed(entry.type), fmt::streamed(type)));
   }
 
   // By default, we allow types that have alignment requirements larger than sizeof(Scalar),

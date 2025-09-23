@@ -321,7 +321,7 @@ class AttrDict(dict):
             pass
 
 
-_astral_paths: T.Dict[str, str] = {}
+_astral_paths: T.Dict[str, str] = {"ruff":"/opt/plum/bin/ruff"}
 
 
 def _find_astral_bin(name: str) -> str:

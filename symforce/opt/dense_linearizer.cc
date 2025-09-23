@@ -3,6 +3,7 @@
  * This source code is under the Apache 2.0 license found in the LICENSE file.
  * ---------------------------------------------------------------------------- */
 
+#include "fmt/ranges.h"
 #include "./dense_linearizer.h"
 
 #include <tuple>
@@ -194,9 +195,9 @@ void DenseLinearizer<Scalar>::InitialLinearization(const Values<Scalar>& values,
       }
 
       spdlog::warn(
-          "LM<{}>: Optimizing a factor that touches no optimized keys! Optimized input keys for "
+        "LM<{}>: Optimizing a factor that touches no optimized keys! Optimized input keys for "
           "the factor are: {}",
-          name_, input_keys);
+          name_, fmt::join(input_keys, ", "));
     }
 
     internal::AssertConsistentShapes(tangent_dim, factor_linearization, include_jacobians_);

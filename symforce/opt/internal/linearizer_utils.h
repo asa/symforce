@@ -10,8 +10,8 @@
 #include <utility>
 
 #include <Eigen/SparseCore>
-#include <fmt/ranges.h>
-#include <spdlog/spdlog.h>
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
 
 #include <lcmtypes/sym/linearization_dense_factor_helper_t.hpp>
 #include <lcmtypes/sym/linearization_sparse_factor_helper_t.hpp>
@@ -313,7 +313,7 @@ void CheckLinearizedFactor(
       !linearized_factor.hessian.array().isFinite().all() ||
       !linearized_factor.rhs.array().isFinite().all()) {
     std::ostringstream ss;
-    fmt::print(ss, "LM<{}> Non-finite linearization for factor:\n{}\n", name, factor);
+    fmt::print(ss, "LM<{}> Non-finite linearization for factor:\n{}\n", name, fmt::streamed(factor));
     for (const auto& index_entry : index_entry_cache) {
       auto d = std::vector<double>{};
       std::copy(values.Data().data() + index_entry.offset,
@@ -325,10 +325,10 @@ void CheckLinearizedFactor(
     }
 
     fmt::print(ss, "\n");
-    fmt::print(ss, "Residual:\n{}\n\n", linearized_factor.residual.transpose());
-    fmt::print(ss, "Jacobian:\n{}\n\n", MatrixX<Scalar>(linearized_factor.jacobian));
-    fmt::print(ss, "Hessian:\n{}\n\n", MatrixX<Scalar>(linearized_factor.hessian));
-    fmt::print(ss, "Rhs:\n{}\n", linearized_factor.rhs.transpose());
+    fmt::print(ss, "Residual:\n{}\n\n", fmt::streamed(linearized_factor.residual.transpose()));
+    fmt::print(ss, "Jacobian:\n{}\n\n", fmt::streamed(MatrixX<Scalar>(linearized_factor.jacobian)));
+    fmt::print(ss, "Hessian:\n{}\n\n", fmt::streamed(MatrixX<Scalar>(linearized_factor.hessian)));
+    fmt::print(ss, "Rhs:\n{}\n", fmt::streamed(linearized_factor.rhs.transpose()));
 
     spdlog::warn(ss.str());
   }
@@ -345,7 +345,7 @@ void CheckLinearizedFactor(
   if (!linearized_factor.residual.array().isFinite().all() ||
       !hessian_map.array().isFinite().all() || !linearized_factor.rhs.array().isFinite().all()) {
     std::ostringstream ss;
-    fmt::print(ss, "LM<{}> Non-finite linearization for factor:\n{}\n", name, factor);
+    fmt::print(ss, "LM<{}> Non-finite linearization for factor:\n{}\n", name, fmt::streamed(factor));
     for (const auto& index_entry : index_entry_cache) {
       auto d = std::vector<double>{};
       std::copy(values.Data().data() + index_entry.offset,
@@ -357,10 +357,10 @@ void CheckLinearizedFactor(
     }
 
     fmt::print(ss, "\n");
-    fmt::print(ss, "Residual:\n{}\n\n", linearized_factor.residual.transpose());
-    fmt::print(ss, "Jacobian:\n{}\n\n", Eigen::SparseMatrix<Scalar>(linearized_factor.jacobian));
-    fmt::print(ss, "Hessian:\n{}\n\n", Eigen::SparseMatrix<Scalar>(linearized_factor.hessian));
-    fmt::print(ss, "Rhs:\n{}\n", linearized_factor.rhs.transpose());
+    fmt::print(ss, "Residual:\n{}\n\n", fmt::streamed(linearized_factor.residual.transpose()));
+    fmt::print(ss, "Jacobian:\n{}\n\n", fmt::streamed(Eigen::SparseMatrix<Scalar>(linearized_factor.jacobian)));
+    fmt::print(ss, "Hessian:\n{}\n\n", fmt::streamed(Eigen::SparseMatrix<Scalar>(linearized_factor.hessian)));
+    fmt::print(ss, "Rhs:\n{}\n", fmt::streamed(linearized_factor.rhs.transpose()));
 
     spdlog::warn(ss.str());
   }

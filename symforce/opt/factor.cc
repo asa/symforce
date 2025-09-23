@@ -5,9 +5,9 @@
 
 #include "./factor.h"
 
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-#include <fmt/ranges.h>
+#include "fmt/format.h"
+#include "fmt/ostream.h"
+#include "fmt/ranges.h"
 
 #include "./assert.h"
 #include "./internal/factor_utils.h"
@@ -152,8 +152,8 @@ const std::vector<Key>& Factor<Scalar>::AllKeys() const {
 
 template <typename Scalar>
 std::ostream& operator<<(std::ostream& os, const sym::Factor<Scalar>& factor) {
-  fmt::print(os, "<Factor optimized keys: {{{}}}, all_keys: {{{}}}>", factor.OptimizedKeys(),
-             factor.AllKeys());
+  fmt::print(os, "<Factor optimized keys: {{{}}}, all_keys: {{{}}}>", fmt::join(factor.OptimizedKeys(), ", "),
+             fmt::join(factor.AllKeys(), ", "));
   return os;
 }
 
@@ -164,8 +164,8 @@ template std::ostream& operator<< <double>(std::ostream& os, const sym::Factor<d
 template <typename LinearizedFactorT>
 std::ostream& PrintLinearizedFactor(std::ostream& os, const LinearizedFactorT& factor) {
   fmt::print(os, "<{}\n tangent_dim: {}\n residual: ({})\n  jacobian: ({})\n  error: {}\n>\n",
-             factor.getTypeName(), factor.jacobian.cols(), factor.residual.transpose(),
-             factor.jacobian, 0.5 * factor.residual.squaredNorm());
+             fmt::streamed(factor.getTypeName()), factor.jacobian.cols(), fmt::streamed(factor.residual.transpose()),
+             fmt::streamed(factor.jacobian), 0.5 * factor.residual.squaredNorm());
   return os;
 }
 

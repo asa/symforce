@@ -7,8 +7,8 @@
 #include <cctype>
 #include <cstdlib>
 
-#include <fmt/ranges.h>
-#include <spdlog/spdlog.h>
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
 
 namespace sym {
 namespace internal {

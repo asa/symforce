@@ -116,6 +116,11 @@ class Key {
 std::ostream& operator<<(std::ostream& os, const sym::Key& key);
 
 }  // namespace sym
+template <>
+struct fmt::formatter<sym::Key> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<sym::key_t> : fmt::ostream_formatter {};
+
 
 /**
  * Hash function for Key.

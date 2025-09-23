@@ -19,11 +19,11 @@ template <typename OptimizationStats, typename NonlinearSolver>
 void LogStatus(const std::string& name, const OptimizationStats& stats) {
   if (stats.status == optimization_status_t::FAILED) {
     spdlog::warn("LM<{}> Optimization finished with status: FAILED, reason: {}", name,
-                 NonlinearSolver::FailureReason::from_int(stats.failure_reason));
+                 fmt::streamed(NonlinearSolver::FailureReason::from_int(stats.failure_reason)));
   } else {
     spdlog::log(
         stats.status == optimization_status_t::SUCCESS ? spdlog::level::info : spdlog::level::warn,
-        "LM<{}> Optimization finished with status: {}", name, stats.status);
+        "LM<{}> Optimization finished with status: {}", name, fmt::streamed(stats.status));
   }
 }
 

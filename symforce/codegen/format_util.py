@@ -33,7 +33,7 @@ def format_cpp(file_contents: str, filename: str) -> str:
             Path(clang_format.__file__).parent / "data" / "bin" / "clang-format"
         )
     except ImportError:
-        clang_format_path = "clang-format"
+        clang_format_path = "/opt/plum/bin/clang-format"
 
     result = subprocess.run(
         [clang_format_path, f"-assume-filename={filename}"],
