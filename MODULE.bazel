@@ -1,0 +1,55 @@
+module(
+    name = "symforce_repo",
+    version = "c2e895",
+    compatibility_level = 1,
+)
+
+git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+bazel_dep(name = "rules_symforce", version = "0.0.1")
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "platforms", version = "0.0.11")
+bazel_dep(name = "rules_cc", version = "0.1.1")
+bazel_dep(name = "eigen", version = "3.4.0")
+bazel_dep(name = "fmt", version = "11.1.4")
+bazel_dep(name = "spdlog", version = "1.15.2")
+bazel_dep(name = "symengine_repo", version = "9eb14a")
+bazel_dep(name = "symenginepy", version = "762f83")
+bazel_dep(name = "metis", version = "5.1.0")
+bazel_dep(name = "rules_python", version = "6e2d493")
+bazel_dep(name = "tl_optional", version = "v1.1.0")
+
+# We next initialize the python toolchain using the extension.
+# You can set different Python versions in this block.
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    configure_coverage_tool = True,
+    is_default = True,
+    python_version = "3.12",
+)
+use_repo(python, "python_3_12", "python_versions", "pythons_hub")
+
+# EXPERIMENTAL: This is experimental and may be removed without notice
+uv = use_extension(
+    "@rules_python//python/uv:uv.bzl",
+    "uv",
+    # Use `dev_dependency` so that the toolchains are not defined pulled when
+    #    # your module is used elsewhere.
+    dev_dependency = True,
+)
+uv.configure(version = "0.6.2")
+use_repo(uv, "uv")
+
+#register_toolchains("@uv//:all")
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    # We can use `envsubst in the above
+    envsubst = ["PIP_INDEX_URL"],
+    # Use the bazel downloader to query the simple API for downloading the sources
+    # Note, that we can use envsubst for this value.
+    experimental_index_url = "${PIP_INDEX_URL:-https://pypi.org/simple}",
+    hub_name = "symforce_pypi",
+    python_version = "3.12",
+    requirements_lock = "//:requirements.txt"
+)
+use_repo(pip, "symforce_pypi")
