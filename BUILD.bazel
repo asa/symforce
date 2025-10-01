@@ -16,10 +16,10 @@ cc_lcm_library(
     src = ":symforce_types",
 )
 
-#COPTS = ["-std=c++17"]
-COPTS = ["-std=c++20"]
+COPTS = [
+    "-std=c++20",
+]
 
-#DEFINES = ["SYMFORCE_DISABLE_ASSERT"]
 DEFINES = ["SKYMARSHAL_PRINTING_ENABLED"]
 
 cc_library(
@@ -31,7 +31,7 @@ cc_library(
         "third_party/skymarshal/include/lcm/lcm_reflection_eigen.hpp",
     ],
     copts = COPTS,
-    defines = ["SKYMARSHAL_PRINTING_ENABLED"],
+    defines = DEFINES,
     includes = ["third_party/skymarshal/include"],
 )
 
@@ -91,6 +91,7 @@ py_library(
     ),
     deps = [
         "@symenginepy",
+        "@symforce_pypi//jinja2",
         "@symforce_pypi//numpy",
         "@symforce_pypi//ruff",
         "@symforce_pypi//sympy",
@@ -117,6 +118,19 @@ GEO_TYPES = [
     "sf.Unit3",
 ]
 
+GROUP_GEO_TYPES = [
+    "sf.Rot2",
+    "sf.Rot3",
+    "sf.Pose2",
+    "sf.Pose3",
+]
+
+ALL_GEO_TYPES = GEO_TYPES + [
+    "sf.Quaternion",
+    "sf.DualQuaternion",
+    "sf.Complex",
+]
+
 GEO_FACTORS_TYPES = [
     "sf.Rot2",
     "sf.Rot3",
@@ -132,6 +146,7 @@ CAM_TYPES = [
     "symforce.cam.linear_camera_cal.LinearCameraCal",
     "symforce.cam.polynomial_camera_cal.PolynomialCameraCal",
     "symforce.cam.spherical_camera_cal.SphericalCameraCal",
+    #    "symforce.cam.spherical_camera_cal.OrthographicCameraCal",
 ]
 
 # run codegen generators for the gen/ directory

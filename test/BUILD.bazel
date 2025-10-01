@@ -1,0 +1,59 @@
+package(default_visibility = ["//visibility:public"])
+
+COPTS = ["-std=c++20"]
+
+DEPS = [
+    "//:symforce",
+    "@eigen",
+    "@catch2//:catch2_main",
+]
+
+cc_test(
+    name = "symforce_linearizer_test",
+    srcs = ["symforce_linearizer_test.cc"],
+    copts = COPTS,
+    deps = DEPS,
+)
+
+cc_test(
+    name = "symforce_optimizer_test",
+    srcs = ["symforce_optimizer_test.cc"],
+    copts = COPTS,
+    deps = DEPS,
+)
+
+cc_test(
+    name = "symforce_factor_test",
+    srcs = ["symforce_factor_test.cc"],
+    copts = COPTS,
+    deps = DEPS,
+)
+
+cc_test(
+    name = "symforce_values_test",
+    srcs = ["symforce_values_test.cc"],
+    copts = COPTS,
+    deps = DEPS,
+)
+
+cc_test(
+    name = "symforce_levenberg_marquardt_test",
+    srcs = ["symforce_levenberg_marquardt_test.cc"],
+    copts = COPTS,
+    deps = DEPS,
+)
+
+cc_test(
+    name = "sparse_cholesky_solver_test",
+    srcs = ["sparse_cholesky_solver_test.cc"],
+    copts = COPTS,
+    deps = DEPS,
+)
+
+cc_test(
+    name = "symforce_gnc_test",
+    srcs = ["symforce_gnc_test.cc"] + glob(["symforce_function_codegen_test_data/**/*.h*"]),
+    copts = COPTS,
+    includes = ["."],
+    deps = DEPS,
+)

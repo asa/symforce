@@ -9,6 +9,9 @@
 
 #include <symforce/opt/factor.h>
 
+//template <typename T>
+//struct fmt::formatter<T> : fmt::ostream_formatter {};
+//
 namespace robot_3d_localization {
 
 void RunDynamic();

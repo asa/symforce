@@ -85,7 +85,7 @@ void RunDynamic() {
   // Print out results
   spdlog::info("Optimized State:");
   for (int i = 0; i < kNumPoses; i++) {
-    spdlog::info("Pose {}: {}", i, values.At<sym::Pose3d>(sym::Keys::WORLD_T_BODY.WithSuper(i)));
+    spdlog::info("Pose {}: {}", i, fmt::streamed(values.At<sym::Pose3d>(sym::Keys::WORLD_T_BODY.WithSuper(i))));
   }
 
   const auto& iteration_stats = stats.iterations;
@@ -101,7 +101,7 @@ void RunDynamic() {
   spdlog::info("Lambda: {}", last_iter.current_lambda);
   spdlog::info("Initial error: {}", first_iter.new_error);
   spdlog::info("Final error: {}", best_iter.new_error);
-  spdlog::info("Status: {}", stats.status);
+  spdlog::info("Status: {}", fmt::streamed(stats.status));
 }
 
 // Explicit template specializations for floats and doubles

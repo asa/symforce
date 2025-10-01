@@ -1,0 +1,58 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "common",
+    hdrs = ["common.h"],
+    deps = [
+        "//:symforce",
+    ],
+)
+
+cc_library(
+    name = "gen",
+    srcs = ["gen/measurements.cc"],
+    hdrs = glob(["gen/*.h"]),
+    deps = [
+        "//:symforce",
+    ],
+)
+
+cc_library(
+    name = "run_dynamic_size_lib",
+    srcs = ["run_dynamic_size.cc"],
+    hdrs = ["run_dynamic_size.h"],
+    deps = [
+        ":common",
+        ":gen",
+        "//:symforce",
+    ],
+)
+
+cc_library(
+    name = "run_fixed_size_lib",
+    srcs = ["run_fixed_size.cc"],
+    hdrs = ["run_fixed_size.h"],
+    deps = [
+        ":common",
+        ":gen",
+        "//:symforce",
+    ],
+)
+
+cc_binary(
+    name = "robot_3d_localization_dynamic",
+    srcs = ["main_dynamic.cc"],
+    deps = [
+        ":run_dynamic_size_lib",
+    ],
+)
+
+cc_binary(
+    name = "robot_3d_localization_fixed",
+    srcs = ["main_fixed.cc"],
+    deps = [
+        ":run_fixed_size_lib",
+    ],
+)

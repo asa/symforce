@@ -133,7 +133,7 @@ void RunBundleAdjustment() {
 
   spdlog::info("Initial State:");
   for (int i = 0; i < params.num_views; i++) {
-    spdlog::info("Pose {}: {}", i, values.At<sym::Pose3d>({Var::VIEW, i}));
+    spdlog::info("Pose {}: {}", i, fmt::streamed(values.At<sym::Pose3d>({Var::VIEW, i})));
   }
   spdlog::info("Landmarks:");
   for (int i = 0; i < params.num_landmarks; i++) {
@@ -155,7 +155,7 @@ void RunBundleAdjustment() {
   // Print out results
   spdlog::info("Optimized State:");
   for (int i = 0; i < params.num_views; i++) {
-    spdlog::info("Pose {}: {}", i, values.At<sym::Pose3d>({Var::VIEW, i}));
+    spdlog::info("Pose {}: {}", i, fmt::streamed(values.At<sym::Pose3d>({Var::VIEW, i})));
   }
   spdlog::info("Landmarks:");
   for (int i = 0; i < params.num_landmarks; i++) {
@@ -174,7 +174,7 @@ void RunBundleAdjustment() {
   spdlog::info("Lambda: {}", last_iter.current_lambda);
   spdlog::info("Initial error: {}", first_iter.new_error);
   spdlog::info("Final error: {}", best_iter.new_error);
-  spdlog::info("Status: {}", stats.status);
+  spdlog::info("Status: {}", fmt::streamed(stats.status));
 
   // Check successful convergence
   SYM_ASSERT(best_iter.new_error < 10);

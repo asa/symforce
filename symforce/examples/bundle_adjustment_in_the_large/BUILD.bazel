@@ -1,0 +1,22 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "gen",
+    hdrs = glob(["gen/*.h"]),
+    deps = [
+        "//:symforce",
+    ],
+)
+
+cc_binary(
+    name = "bundle_adjustment_in_the_large",
+    srcs = ["bundle_adjustment_in_the_large.cc"],
+    data = glob(["data/*"]),
+    deps = [
+        ":gen",
+        "//:symforce",
+        "@eigen",
+    ],
+)

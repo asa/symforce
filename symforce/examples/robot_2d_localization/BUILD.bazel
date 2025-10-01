@@ -1,0 +1,29 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "gen",
+    hdrs = glob(["gen/*.h"]),
+    deps = [
+        "//:symforce",
+    ],
+)
+
+cc_library(
+    name = "lib",
+    srcs = ["run_localization.cc"],
+    hdrs = ["run_localization.h"],
+    deps = [
+        ":gen",
+        "//:symforce",
+    ],
+)
+
+cc_binary(
+    name = "robot_2d_localization",
+    srcs = ["main.cc"],
+    deps = [
+        ":lib",
+    ],
+)

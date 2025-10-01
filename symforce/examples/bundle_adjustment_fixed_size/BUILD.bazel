@@ -1,0 +1,31 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "build_example_state",
+    srcs = ["build_example_state.cc"],
+    hdrs = ["build_example_state.h"],
+    deps = [
+        "//:symforce",
+        "//symforce/examples/example_utils:bundle_adjustment_util",
+    ],
+)
+
+cc_library(
+    name = "lib",
+    srcs = ["run_bundle_adjustment.cc"],
+    hdrs = ["run_bundle_adjustment.h"],
+    deps = [
+        ":build_example_state",
+        "//:symforce",
+    ],
+)
+
+cc_binary(
+    name = "bundle_adjustment_fixed_size",
+    srcs = ["main.cc"],
+    deps = [
+        ":lib",
+    ],
+)
