@@ -133,6 +133,12 @@ const std::unordered_map<key_t, index_entry_t>& Linearizer<ScalarType>::StateInd
   return state_index_;
 }
 
+template <typename ScalarType>
+const std::vector<std::pair<int32_t, int32_t>>& Linearizer<ScalarType>::ResidualEntryByFactor()
+    const {
+  return residual_entry_by_factor_;
+}
+
 // ----------------------------------------------------------------------------
 // Private Methods
 // ----------------------------------------------------------------------------
@@ -182,6 +188,9 @@ void Linearizer<ScalarType>::BuildInitialLinearization(const Values<Scalar>& val
   LinearizedDenseFactor linearized_dense_factor{};
   size_t sparse_idx{0};
   factor_indices_.reserve(factors_->size());
+
+  residual_entry_by_factor_.reserve(factors_->size());
+
   for (const auto& factor : *factors_) {
     factor_indices_.push_back(values.CreateIndex(factor.AllKeys()).entries);
 
@@ -213,6 +222,10 @@ void Linearizer<ScalarType>::BuildInitialLinearization(const Values<Scalar>& val
       for (int res_i = 0; res_i < factor_helper.residual_dim; ++res_i) {
         residual.push_back(linearized_factor.residual(res_i));
       }
+
+      // Store the range of residuals this factor is responsible for
+      residual_entry_by_factor_.push_back(
+          {combined_residual_offset - factor_helper.residual_dim, factor_helper.residual_dim});
 
       // Add contribution from right-hand-side
       for (const linearization_offsets_t& key_helper : factor_helper.key_helpers) {
@@ -248,6 +261,10 @@ void Linearizer<ScalarType>::BuildInitialLinearization(const Values<Scalar>& val
       for (int i = 0; i < factor_helper.residual_dim; i++) {
         residual.push_back(linearized_dense_factor.residual(i));
       }
+
+      // Store the range of residuals this factor is responsible for
+      residual_entry_by_factor_.push_back(
+          {combined_residual_offset - factor_helper.residual_dim, factor_helper.residual_dim});
 
       // Add contributions from right-hand-side
       for (const linearization_dense_key_helper_t& key_helper : factor_helper.key_helpers) {
