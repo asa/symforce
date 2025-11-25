@@ -2,7 +2,7 @@ load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_symforce//symforce_tools:gen.bzl", "cc_gen_pkg", "cc_sym_util_pkg", "lcm_pkg", "py_gen_pkg")
-load("@rules_symforce//symforce_tools:lcmgen.bzl", "cc_lcm_library")
+load("@rules_symforce//symforce_tools:lcmgen.bzl", "cc_lcm_library", "py_lcm_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -14,6 +14,15 @@ cc_lcm_library(
 cc_lcm_library(
     name = "symforce_types_lcm_lib",
     src = ":symforce_types",
+)
+
+py_lcm_library(
+    name = "symforce_lcm_py",
+    srcs = [
+        "lcmtypes/symforce.lcm",
+        "lcmtypes/symforce_types.lcm",
+        "third_party/eigen_lcm/lcmtypes/eigen_lcm.lcm",
+    ],
 )
 
 COPTS = [
@@ -104,6 +113,7 @@ py_library(
     name = "symforce_python",
     deps = [
         ":py",
+        ":symforce_lcm_py",
         ":symforce_sym",
         "@symenginepy",
     ],
