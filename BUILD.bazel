@@ -106,6 +106,7 @@ py_library(
         ],
     ),
     data = [":codegen_templates"],
+    imports = ["."],
     deps = [
         "@symenginepy",
         "@symforce_pypi//graphviz",
