@@ -1,4 +1,5 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_symforce//symforce_tools:gen.bzl", "cc_gen_pkg", "cc_sym_util_pkg", "lcm_pkg", "py_gen_pkg")
@@ -84,6 +85,12 @@ cc_library(
     ],
 )
 
+# Codegen templates needed for runtime code generation
+filegroup(
+    name = "codegen_templates",
+    srcs = glob(["symforce/codegen/backends/*/templates/**"]),
+)
+
 py_library(
     name = "py",
     srcs = glob(
@@ -98,8 +105,10 @@ py_library(
             "symforce/benchmarks/**",
         ],
     ),
+    data = [":codegen_templates"],
     deps = [
         "@symenginepy",
+        "@symforce_pypi//graphviz",
         "@symforce_pypi//jinja2",
         "@symforce_pypi//numpy",
         "@symforce_pypi//ruff",
@@ -111,6 +120,10 @@ py_library(
 # with sym
 py_library(
     name = "symforce_python",
+    data = [
+        ":cc_sym",
+        "@rules_symforce//symforce_tools:backend_configs",
+    ],
     deps = [
         ":py",
         ":symforce_lcm_py",
@@ -154,9 +167,9 @@ CAM_TYPES = [
     "symforce.cam.double_sphere_camera_cal.DoubleSphereCameraCal",
     "symforce.cam.equirectangular_camera_cal.EquirectangularCameraCal",
     "symforce.cam.linear_camera_cal.LinearCameraCal",
+    "symforce.cam.orthographic_camera_cal.OrthographicCameraCal",
     "symforce.cam.polynomial_camera_cal.PolynomialCameraCal",
     "symforce.cam.spherical_camera_cal.SphericalCameraCal",
-    #    "symforce.cam.spherical_camera_cal.OrthographicCameraCal",
 ]
 
 # run codegen generators for the gen/ directory
@@ -330,6 +343,39 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "slam",
+    srcs = glob([
+        "symforce/slam/**/*.cc",
+    ]),
+    hdrs = glob([
+        "symforce/slam/**/*.h",
+    ]),
+    copts = COPTS,
+    defines = DEFINES,
+    includes = ["."],
+    deps = [
+        ":gen_lib",
+        ":opt",
+        "@eigen",
+        "@fmt",
+        "@spdlog",
+    ],
+)
+
+# Pregenerated aggregate headers that include all geo/cam types
+cc_library(
+    name = "pregen_all_types",
+    hdrs = [
+        "gen/cpp/sym/all_cam_types.h",
+        "gen/cpp/sym/all_geo_types.h",
+    ],
+    includes = ["gen/cpp"],
+    deps = [
+        ":gen_lib",
+    ],
+)
+
 py_library(
     name = "skymarshal",
     srcs = glob(["third_party/skymarshal/skymarshal/**/*.py"]),
@@ -348,5 +394,42 @@ py_binary(
     main = "third_party/skymarshal/skymarshal/__main__.py",
     deps = [
         ":skymarshal",
+    ],
+)
+
+# cc_sym: Python bindings for SymForce C++ optimizer
+# Note: headers are included in srcs since pybind_extension doesn't support hdrs
+pybind_extension(
+    name = "cc_sym",
+    srcs = [
+        "symforce/pybind/cc_factor.cc",
+        "symforce/pybind/cc_factor.h",
+        "symforce/pybind/cc_key.cc",
+        "symforce/pybind/cc_key.h",
+        "symforce/pybind/cc_linearization.cc",
+        "symforce/pybind/cc_linearization.h",
+        "symforce/pybind/cc_logger.cc",
+        "symforce/pybind/cc_logger.h",
+        "symforce/pybind/cc_optimization_stats.cc",
+        "symforce/pybind/cc_optimization_stats.h",
+        "symforce/pybind/cc_optimizer.cc",
+        "symforce/pybind/cc_optimizer.h",
+        "symforce/pybind/cc_slam.cc",
+        "symforce/pybind/cc_slam.h",
+        "symforce/pybind/cc_sym.cc",
+        "symforce/pybind/cc_values.cc",
+        "symforce/pybind/cc_values.h",
+        "symforce/pybind/lcm_type_casters.h",
+        "symforce/pybind/sym_type_casters.cc",
+        "symforce/pybind/sym_type_casters.h",
+    ],
+    deps = [
+        ":gen_lib",
+        ":opt",
+        ":pregen_all_types",
+        ":slam",
+        "@eigen",
+        "@fmt",
+        "@spdlog",
     ],
 )

@@ -16,7 +16,8 @@ bazel_dep(name = "spdlog", version = "1.15.2")
 bazel_dep(name = "symengine_repo", version = "9eb14a")
 bazel_dep(name = "symenginepy", version = "762f83")
 bazel_dep(name = "metis", version = "5.1.0")
-bazel_dep(name = "rules_python", version = "6e2d493")
+bazel_dep(name = "pybind11_bazel", version = "3.0.0")
+bazel_dep(name = "rules_python", version = "1.7.0")
 
 # We next initialize the python toolchain using the extension.
 # You can set different Python versions in this block.

@@ -14,6 +14,10 @@ import sys
 from symforce import logger as _logger
 from symforce import path_util
 
+# Ensure sym module is available before loading cc_sym native extension
+# The cc_sym type casters do py::module_::import("sym") at runtime
+import sym  # noqa: F401
+
 try:
     # If cc_sym is availble on the python path, use it
     from cc_sym import *  # noqa: F403

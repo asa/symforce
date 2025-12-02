@@ -285,7 +285,7 @@ void AddValuesWrapper(pybind11::module_ module) {
            )")
       .def("get_lcm_type", &sym::Valuesd::GetLcmType, py::arg("sort_keys") = false,
            "Serialize to LCM.")
-      .def("__repr__", [](const sym::Valuesd& values) { return fmt::format("{}", values); })
+      .def("__repr__", [](const sym::Valuesd& values) { return fmt::format("{}", fmt::streamed(values)); })
       .def(py::pickle(
           [](const sym::Valuesd& values) {  //  __getstate__
             const sym::values_t lcm_values = values.GetLcmType();
