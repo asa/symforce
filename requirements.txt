@@ -280,8 +280,8 @@ stack-data==0.6.3
     # via ipython
 #file:./gen/python
 #    # via symforce (pyproject.toml)
-sympy==1.11.1
-    # via symforce (pyproject.toml)
+sympy==1.12
+    # via symforce (pyproject.toml) - updated for torch compatibility (equal_valued)
 tinycss2==1.4.0
     # via bleach
 tornado==6.5.1
