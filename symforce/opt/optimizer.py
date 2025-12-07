@@ -82,6 +82,8 @@ class Optimizer:
             passed to the optimizer.
         params: Params for the optimizer.  Defaults are in `OptimizerParams`, except that `verbose`
             is `True` by default.
+        name: A descriptive name for this optimizer, used in logging output. Defaults to
+            "sym::Optimize".
     """
 
     Params = OptimizerParams
@@ -181,6 +183,7 @@ class Optimizer:
         factors: T.Iterable[T.Union[Factor, NumericFactor]],
         optimized_keys: T.Optional[T.Sequence[str]] = None,
         params: T.Optional[OptimizerParams] = None,
+        name: str = "sym::Optimize",
     ):
         if optimized_keys is None:
             # This will be filled with the optimized keys of the numeric factors
@@ -246,6 +249,7 @@ class Optimizer:
         self._cc_optimizer = cc_sym.Optimizer(
             self.params.to_lcm(),
             [factor.cc_factor(self._cc_keys_map) for factor in numeric_factors],
+            name,
         )
 
     def _initialize(self, values: Values) -> None:
