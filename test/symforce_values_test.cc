@@ -344,7 +344,6 @@ TEMPLATE_PRODUCT_TEST_CASE("Test lie group ops", "[values]",
   // Test a bunch of retractions and local coordinates
   for (int i = 0; i < 100; ++i) {
     v1.Set('x', element);
-    const sym::Values<Scalar> v2 = v1;
 
     const T random_element = sym::StorageOps<T>::Random(gen);
     CAPTURE(random_element);
@@ -352,16 +351,74 @@ TEMPLATE_PRODUCT_TEST_CASE("Test lie group ops", "[values]",
         sym::LieGroupOps<T>::LocalCoordinates(element, random_element, epsilon);
     CAPTURE(tangent_vec.transpose());
 
-    // test retraction
+    sym::Values<Scalar> v2;
+    v2.Set('x', random_element);
+
+    const sym::VectorX<Scalar> local_coords_with_index = v1.LocalCoordinates(v2, index, epsilon);
+    CAPTURE(local_coords_with_index);
+    CHECK(sym::IsClose<sym::VectorX<Scalar>>(local_coords_with_index, tangent_vec, tolerance));
+
     v1.Retract(index, tangent_vec.data(), epsilon);
     const T retracted_element = v1.template At<T>('x');
     CAPTURE(retracted_element);
     CHECK(sym::IsClose(random_element, retracted_element, tolerance));
-
-    // test local coordinates
-    const sym::VectorX<Scalar> local_coords = v1.LocalCoordinates(v2, index, epsilon);
-    CHECK(sym::IsClose<sym::VectorX<Scalar>>(local_coords, tangent_vec, tolerance));
   }
+}
+
+TEST_CASE("Test LocalCoordinates", "[values]") {
+  const double epsilon = sym::kDefaultEpsilond;
+  const double tolerance = epsilon * 1000.0;
+  CAPTURE(tolerance);
+  std::mt19937 gen(42);
+
+  sym::Valuesd values;
+  sym::Valuesd other_values;
+  for (int i = 0; i < 2; ++i) {
+    values.Set<sym::Rot3d>({'R', i}, sym::Rot3d::Random(gen));
+    other_values.Set<sym::Rot3d>({'R', i}, sym::Rot3d::Random(gen));
+  }
+
+  // Test a single key.
+  std::vector<sym::Key> key_order = {{'R', 0}};
+  Eigen::VectorXd tangent = values.LocalCoordinates(other_values, key_order, epsilon);
+
+  Eigen::VectorXd expected_tangent = values.At<sym::Rot3d>({'R', 0}).LocalCoordinates(
+      other_values.At<sym::Rot3d>({'R', 0}), epsilon);
+
+  CAPTURE(values);
+  CAPTURE(other_values);
+  CAPTURE(tangent);
+  CAPTURE(expected_tangent);
+  CHECK(sym::IsClose<Eigen::VectorXd>(tangent, expected_tangent, tolerance));
+
+  // Test with both keys and expect the order of the result to match.
+  key_order = {{{'R', 0}, {'R', 1}}};
+  tangent = values.LocalCoordinates(other_values, key_order, epsilon);
+
+  expected_tangent = Eigen::VectorXd::Zero(6);
+  expected_tangent.head(3) = values.At<sym::Rot3d>({'R', 0}).LocalCoordinates(
+      other_values.At<sym::Rot3d>({'R', 0}), epsilon);
+  expected_tangent.tail(3) = values.At<sym::Rot3d>({'R', 1}).LocalCoordinates(
+      other_values.At<sym::Rot3d>({'R', 1}), epsilon);
+
+  CAPTURE(tangent);
+  CAPTURE(expected_tangent);
+  CHECK(sym::IsClose<Eigen::VectorXd>(tangent, expected_tangent, tolerance));
+
+  // Test the reserve order with the same values.
+  key_order = {{{'R', 1}, {'R', 0}}};
+  // Also pass in the tangent size.
+  tangent = values.LocalCoordinates(other_values, key_order, epsilon, 6);
+
+  expected_tangent = Eigen::VectorXd::Zero(6);
+  expected_tangent.head(3) = values.At<sym::Rot3d>({'R', 1}).LocalCoordinates(
+      other_values.At<sym::Rot3d>({'R', 1}), epsilon);
+  expected_tangent.tail(3) = values.At<sym::Rot3d>({'R', 0}).LocalCoordinates(
+      other_values.At<sym::Rot3d>({'R', 0}), epsilon);
+
+  CAPTURE(tangent);
+  CAPTURE(expected_tangent);
+  CHECK(sym::IsClose<Eigen::VectorXd>(tangent, expected_tangent, tolerance));
 }
 
 TEST_CASE("Test move operator", "[values]") {

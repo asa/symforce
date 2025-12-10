@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import os
 import platform
@@ -10,15 +12,14 @@ async def run_test(
     semaphore: asyncio.Semaphore, output_lock: asyncio.Lock, test_file: Path, symbolic_api: str
 ) -> bool:
     async with semaphore:
-        args = [test_file]
+        args: list[str] = [str(test_file)]
 
         # Codegen is different on macOS; there's some nondeterminism in SymEngine, based on e.g.
-        # unordered_map iteration order, that we need to fix.  For now, this is fine, so we check
-        # that the tests pass, but allow them to generate different code than is checked in.
+        # unordered_map iteration order, that we need to fix.  The wheel tests also don't pin
+        # dependencies, so there are some differences on newer sympy with the Rust backend. We
+        # check that the tests pass, but allow them to generate different code than is checked in.
         include_update_flag = (
-            platform.system() == "Darwin"
-            and test_file.name.endswith("_codegen_test.py")
-            and symbolic_api == "symengine"
+            test_file.name.endswith("_codegen_test.py") and platform.system() == "Darwin"
         )
         if include_update_flag:
             args.append("--update")
@@ -53,10 +54,10 @@ async def run_test(
 async def main() -> int:
     project = Path(sys.argv[1])
 
-    tests = project.glob("test/*_test.py")
-    semaphore = asyncio.Semaphore(os.cpu_count())
+    test_files = project.glob("test/*_test.py")
+    semaphore = asyncio.Semaphore(os.cpu_count() or 1)
     output_lock = asyncio.Lock()
-    tests = [(test, symbolic_api) for test in tests for symbolic_api in ("symengine", "sympy")]
+    tests = [(test, symbolic_api) for test in test_files for symbolic_api in ("symengine", "sympy")]
     results = await asyncio.gather(
         *[run_test(semaphore, output_lock, test, symbolic_api) for test, symbolic_api in tests]
     )

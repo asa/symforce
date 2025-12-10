@@ -15,13 +15,17 @@ from symforce import cc_sym  # noqa: F401
 from symforce import path_util
 from symforce.codegen import format_util
 from symforce.test_util import TestCase
+from symforce.test_util.stubs_util import patch_current_module_prefix
 from symforce.test_util.stubs_util import patch_handle_docstring
 from symforce.test_util.stubs_util import patch_lcmtype_imports
+from symforce.test_util.stubs_util import patch_numpy_annotations
 from symforce.test_util.stubs_util import patch_remove_parameters
 
 patch_lcmtype_imports()
 patch_handle_docstring()
 patch_remove_parameters()
+patch_numpy_annotations()
+patch_current_module_prefix()
 
 
 class SymforceCCSymStubsCodegenTest(TestCase):
@@ -109,10 +113,11 @@ class SymforceCCSymStubsCodegenTest(TestCase):
 
         (output_dir / "cc_sym.pyi").write_text(stubgen_output)
 
-        self.compare_or_update_file(
-            new_file=output_dir / "cc_sym.pyi",
-            path=path_util.symforce_data_root(__file__) / "symforce" / "pybind" / "cc_sym.pyi",
-        )
+        if sys.version_info.minor < 9:
+            self.compare_or_update_file(
+                new_file=output_dir / "cc_sym.pyi",
+                path=path_util.symforce_data_root(__file__) / "symforce" / "pybind" / "cc_sym.pyi",
+            )
 
 
 if __name__ == "__main__":

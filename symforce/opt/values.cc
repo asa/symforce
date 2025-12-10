@@ -326,31 +326,6 @@ void Values<Scalar>::Retract(const index_t& index, const Scalar* delta, const Sc
   }
 }
 
-/**
- * Polymorphic helper to compute local coordinates
- */
-template <typename T, typename Scalar = typename sym::StorageOps<T>::Scalar>
-void LocalCoordinatesHelper(const Scalar* const storage_this, const Scalar* const storage_others,
-                            Scalar* const tangent_out, const Scalar epsilon,
-                            const int32_t /* tangent_dim */) {
-  const T t1 = sym::StorageOps<T>::FromStorage(storage_this);
-  const T t2 = sym::StorageOps<T>::FromStorage(storage_others);
-  const typename sym::LieGroupOps<T>::TangentVec tangent_vec =
-      sym::LieGroupOps<T>::LocalCoordinates(t2, t1, epsilon);
-  // TODO(alvin): can we avoid this copy?
-  std::copy_n(tangent_vec.data(), sym::LieGroupOps<T>::TangentDim(), tangent_out);
-}
-template <typename Scalar>
-void MatrixLocalCoordinatesHelper(const Scalar* const storage_this,
-                                  const Scalar* const storage_others, Scalar* const tangent_out,
-                                  const Scalar /* epsilon */, const int32_t tangent_dim) {
-  for (int32_t i = 0; i < tangent_dim; ++i) {
-    tangent_out[i] = storage_this[i] - storage_others[i];
-  }
-}
-
-BY_TYPE_HELPER(LocalCoordinatesByType, LocalCoordinatesHelper, MatrixLocalCoordinatesHelper);
-
 template <typename Scalar>
 VectorX<Scalar> Values<Scalar>::LocalCoordinates(const Values<Scalar>& others, const index_t& index,
                                                  const Scalar epsilon) const {

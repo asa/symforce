@@ -59,12 +59,12 @@ namespace sym {
  *         {key0, key1}));
  *
  *     // Set up the params
- *     sym::optimizer_params_t params = DefaultLmParams();
+ *     sym::optimizer_params_t params = sym::DefaultOptimizerParams();
  *     params.iterations = 50;
  *     params.early_exit_min_reduction = 0.0001;
  *
  *     // Optimize
- *     sym::Optimizer<double> optimizer(params, factors, epsilon);
+ *     sym::Optimizer<double> optimizer(params, factors);
  *     optimizer.Optimize(values);
  *
  * See symforce/test/symforce_optimizer_test.cc for more examples

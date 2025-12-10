@@ -1,0 +1,1 @@
+symforce/prettier.config.mjs

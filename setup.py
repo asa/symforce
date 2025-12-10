@@ -362,7 +362,15 @@ if __name__ == "__main__":
             "lcmtypes": "lcmtypes_build/lcmtypes",
         },
         package_data={
-            "": ["*.jinja", "*.mtx", "README*", ".clang-format", "py.typed", "ruff.toml"]
+            "": [
+                "*.jinja",
+                "*.mtx",
+                "README*",
+                ".clang-format",
+                "py.typed",
+                "ruff.toml",
+                "prettier.config.mjs",
+            ]
         },
         # pyproject.toml doesn't allow specifying url or homepage separately, and if it's not
         # specified separately PyPI sorts all the links alphabetically
@@ -380,17 +388,18 @@ if __name__ == "__main__":
         install_requires=maybe_rewrite_local_dependencies(
             [
                 "ruff",
-                "clang-format",
+                # clang-format 21.1.3 and newer have this issue:
+                # https://github.com/llvm/llvm-project/issues/170573
+                "clang-format<21.1.3",
                 "graphviz",
                 "jinja2",
-                # numpy 2.0 isn't supported until SymPy 1.13.0
-                # https://github.com/sympy/sympy/wiki/Release-Notes-for-1.13.0
-                "numpy<2.0",
+                "numpy",
                 "scipy",
                 f"skymarshal @ file://localhost/{ESCAPED_SOURCE_DIR}/third_party/skymarshal",
-                "sympy~=1.11.1",
+                "sympy>=1.11",
                 f"symforce-sym @ file://localhost/{ESCAPED_SOURCE_DIR}/gen/python",
                 "typing-extensions; python_version<'3.9'",
+                "sortedcontainers",
             ]
         ),
         setup_requires=setup_requirements,
@@ -402,14 +411,15 @@ if __name__ == "__main__":
                     "argh",
                     "coverage",
                     "jinja2~=3.0",
-                    "mypy~=1.11.0",
+                    "mypy~=1.14.0",
                     "numba",
-                    # For https://github.com/sizmailov/pybind11-stubgen/pull/243
-                    "pybind11-stubgen>=2.5.3",
+                    # Base for https://github.com/sizmailov/pybind11-stubgen/pull/263
+                    "pybind11-stubgen>=2.5.5",
                     "ruff~=0.9.7",
                     "types-jinja2",
                     "types-requests",
                     "types-setuptools",
+                    "sortedcontainers-stubs",
                     # Oldest version that solves to the right requirements
                     "uv>=0.2.0",
                 ]
