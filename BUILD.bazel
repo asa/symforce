@@ -91,6 +91,18 @@ filegroup(
     srcs = glob(["symforce/codegen/backends/*/templates/**"]),
 )
 
+# Caspar templates needed for GPU solver generation
+filegroup(
+    name = "caspar_templates",
+    srcs = glob(["symforce/experimental/caspar/source/templates/**"]),
+)
+
+# Caspar runtime files (CUDA headers, etc) needed for compilation
+filegroup(
+    name = "caspar_runtime",
+    srcs = glob(["symforce/experimental/caspar/source/runtime/**"]),
+)
+
 py_library(
     name = "py",
     srcs = glob(
@@ -105,7 +117,11 @@ py_library(
             "symforce/benchmarks/**",
         ],
     ),
-    data = [":codegen_templates"],
+    data = [
+        ":codegen_templates",
+        ":caspar_templates",
+        ":caspar_runtime",
+    ],
     imports = ["."],
     deps = [
         "@symenginepy",
@@ -113,6 +129,7 @@ py_library(
         "@symforce_pypi//jinja2",
         "@symforce_pypi//numpy",
         "@symforce_pypi//ruff",
+        "@symforce_pypi//sortedcontainers",
         "@symforce_pypi//sympy",
     ],
 )

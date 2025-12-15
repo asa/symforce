@@ -246,6 +246,8 @@ six==1.17.0
 #    # via symforce (pyproject.toml)
 snowballstemmer==3.0.1
     # via sphinx
+sortedcontainers==2.4.0
+    # via symforce (pyproject.toml)
 soupsieve==2.7
     # via beautifulsoup4
 sphinx==8.1.3
